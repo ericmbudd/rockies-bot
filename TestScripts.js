@@ -25,6 +25,63 @@ function testPostBluesky(gameState) {
   blueskyLink = postBluesky(postText);
 }
 
+function testPostGamedayLink() {
+  const gamedayUrl = 'https://www.mlb.com/gameday/824371';
+  const ogImageUrl = 'https://midfield.mlbstatic.com/v1/teams-matchup/119-115/ar_16:9/w_1440';
+
+  Logger.log('Testing gameday link post with URL: ' + gamedayUrl);
+
+  // First, verify what getUrlInfo scrapes for this URL
+  const urlInfo = getUrlInfo(gamedayUrl);
+  Logger.log('=== getUrlInfo result ===');
+  Logger.log('title: ' + urlInfo.title);
+  Logger.log('description: ' + urlInfo.description);
+  Logger.log('imageUrl (scraped): ' + urlInfo.imageUrl);
+  Logger.log('Expected og:image: ' + ogImageUrl);
+  Logger.log('og:image matches expected: ' + (urlInfo.imageUrl === ogImageUrl));
+
+  // Use the correct og:image URL for the thumbnail
+  const thumbImageUrl = ogImageUrl;
+  Logger.log('Creating thumbnail from: ' + thumbImageUrl);
+  const thumb = createThumb(thumbImageUrl);
+  if (!thumb) {
+    Logger.log('ERROR: Could not create thumbnail from og:image URL');
+    return;
+  }
+  Logger.log('Thumbnail created successfully: ' + JSON.stringify(thumb));
+
+  const postText = 'Rockies vs Dodgers - Follow along: ' + gamedayUrl;
+  const urlLocStart = postText.indexOf(gamedayUrl);
+  const urlLocEnd = urlLocStart + gamedayUrl.length;
+  const byteStart = getByteLength(postText.substring(0, urlLocStart));
+  const byteEnd = getByteLength(postText.substring(0, urlLocEnd));
+
+  const record = {
+    text: postText,
+    langs: ["en"],
+    createdAt: (new Date()).toISOString(),
+    facets: [{
+      index: { byteStart: byteStart, byteEnd: byteEnd },
+      features: [{ $type: 'app.bsky.richtext.facet#link', uri: gamedayUrl }]
+    }],
+    embed: {
+      $type: 'app.bsky.embed.external',
+      external: {
+        uri: gamedayUrl,
+        title: urlInfo.title || 'MLB Gameday',
+        description: urlInfo.description || '',
+        thumb: thumb
+      }
+    }
+  };
+
+  Logger.log('=== RECORD DEBUG ===');
+  Logger.log('Full record: ' + JSON.stringify(record));
+
+  const [blueskyLink, uri, cid] = post(record, undefined, undefined);
+  Logger.log('Bluesky post created: ' + blueskyLink);
+}
+
 // Renamed testUploadVideoRecommended to testUploadVideoSimple for consistency with the request
 function testUploadVideoRecommended() {
   const sampleVideoUrl = 'https://bdata-producedclips.mlb.com/5074eaba-74fe-477d-8a5e-4768527f1b17.mp4';
