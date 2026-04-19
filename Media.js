@@ -139,6 +139,7 @@ function postGameVideo(gameState) {
       gameState.queuedVideoLink = gameState.highlightLink;
       gameState.queuedVideoDuration = gameState.highlightDuration;
       gameState.queuedVideoOutput = gameState.highlightOutput;
+      gameState.queuedVideoDescription = gameState.highlightDescription;
       // Activate media flag for the main posting loop
       gameState.mediaActive = true;
       // Set mediaTeam/Synonym for the queued scoring play
@@ -157,9 +158,12 @@ function postGameVideo(gameState) {
           let tempMediaSynonym = 'wentOkSynonym'; // Or a new defensive synonym list
           
           // Construct the message for the defensive play
+          const videoText = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '') 
+            ? gameState.highlightDescription 
+            : gameState.highlightHeadline;
           let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
-${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
+${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
 
           // Download and post the video as a standalone (isReply = false)
           let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
@@ -205,10 +209,12 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
       let originalLink = gameState.highlightLink;
       let originalHeadline = gameState.highlightHeadline;
       let originalOutput = gameState.highlightOutput;
+      let originalDescription = gameState.highlightDescription;
       
       gameState.highlightLink = gameState.queuedVideoLink;
       gameState.highlightHeadline = gameState.queuedVideoHeadline;
       gameState.highlightOutput = gameState.queuedVideoOutput;
+      gameState.highlightDescription = gameState.queuedVideoDescription;
 
       let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, true); // isReply defaults to true
       
@@ -216,6 +222,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
       gameState.highlightLink = originalLink;
       gameState.highlightHeadline = originalHeadline;
       gameState.highlightOutput = originalOutput;
+      gameState.highlightDescription = originalDescription;
 
       gameState.mediaActive = false; // Reset mediaActive after posting the queued video
       // Clear all queued video properties
@@ -223,6 +230,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
       gameState.queuedVideoHeadline = null;
       gameState.queuedVideoDuration = null;
       gameState.queuedVideoOutput = null;
+      gameState.queuedVideoDescription = null;
 
       Logger.log("Outputting to Posts sheet")
       sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.queuedVideoOutput, gameState.queuedVideoOutput , blueskyLink]]);
@@ -238,6 +246,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
       gameState.queuedVideoHeadline = null;
       gameState.queuedVideoDuration = null;
       gameState.queuedVideoOutput = null;
+      gameState.queuedVideoDescription = null;
     } else if (!gameState.queuedVideoLink) {
       Logger.log("=> SKIPPED POSTING: mediaActive is true, but no qualifying scoring video has arrived yet.");
     }
@@ -350,9 +359,13 @@ function downloadAndPostVideo(gameState, isReply = true, customPostText = null) 
   if (customPostText) {
     messageToPost = customPostText;
   } else {
+    const videoText = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '') 
+      ? gameState.highlightDescription 
+      : gameState.highlightHeadline;
+
     messageToPost = `${getSynonym(gameState.mediaSynonym)}
 
-${allTeamInfo()[gameState.mediaTeam].teamName} — ${gameState.highlightHeadline}:`
+${allTeamInfo()[gameState.mediaTeam].teamName} — ${videoText}:`
   }
 
   record = {

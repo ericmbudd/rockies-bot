@@ -54,6 +54,7 @@ function main(triggerUid) {
   gameState.queuedVideoLink = previousGameState.queuedVideoLink;
   gameState.queuedVideoDuration = previousGameState.queuedVideoDuration;
   gameState.queuedVideoOutput = previousGameState.queuedVideoOutput;
+  gameState.queuedVideoDescription = previousGameState.queuedVideoDescription;
 
   gameState.lastPostBlueskyLink = previousGameState.lastPostBlueskyLink;
   gameState.lastPostParentUri = previousGameState.lastPostParentUri;
