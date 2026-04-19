@@ -148,28 +148,33 @@ function postGameVideo(gameState) {
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
       if (!gameState.queuedVideoLink) { // Check if a scoring video is NOT already queued
-        Logger.log("   - Defensive video qualifies! Posting it immediately as standalone.");
         
         // Temporarily determine mediaTeam/Synonym for this defensive post
         let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
-        let tempMediaSynonym = 'wentOkSynonym'; // Or a new defensive synonym list
-        
-        // Construct the message for the defensive play
-        let defensiveMessage = `${getSynonym(tempMediaSynonym)}
+
+        if (tempMediaTeam === 'Colorado Rockies') {
+          Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
+          let tempMediaSynonym = 'wentOkSynonym'; // Or a new defensive synonym list
+          
+          // Construct the message for the defensive play
+          let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
 ${allTeamInfo()[tempMediaTeam].teamName} — ${gameState.highlightHeadline}:`;
 
-        // Download and post the video as a standalone (isReply = false)
-        let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
+          // Download and post the video as a standalone (isReply = false)
+          let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
 
-        // Record the post in the "Posts" sheet
-        var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
-        var postCount = Number(sheet.getRange(1,8,1,1).getValues());
-        var dateTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-        sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.highlightOutput, gameState.highlightOutput , blueskyLink]]);
-        sheet.getRange(1,8,1,1).setValue([Number(postCount + 1)]);
-        
-        Logger.log("   - Defensive play posted. Not affecting main media queue.");
+          // Record the post in the "Posts" sheet
+          var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
+          var postCount = Number(sheet.getRange(1,8,1,1).getValues());
+          var dateTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+          sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.highlightOutput, gameState.highlightOutput , blueskyLink]]);
+          sheet.getRange(1,8,1,1).setValue([Number(postCount + 1)]);
+          
+          Logger.log("   - Defensive play posted. Not affecting main media queue.");
+        } else {
+          Logger.log("   - Defensive video qualifies, but was not by the Rockies. Skipping post.");
+        }
       } else {
         Logger.log("   - Defensive video qualifies, but a scoring play is already queued. Skipping immediate defensive post.");
       }
