@@ -1,0 +1,31 @@
+{
+  "timeZone": "America/Denver",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Drive",
+        "serviceId": "drive",
+        "version": "v2"
+      }
+    ],
+    "libraries": [
+      {
+        "userSymbol": "Cheerio",
+        "libraryId": "1ReeQ6WO8kKNxoaA_O0XEQ589cIrRvEBA9qcWpNqdOP17i47u6N9M5Xh0",
+        "version": "16"
+      },
+      {
+        "userSymbol": "ImgApp",
+        "libraryId": "1T03nYHRho6XMWYcaumClcWr6ble65mAT8OLJqRFJ5lukPVogAN2NDl-y",
+        "version": "11"
+      },
+      {
+        "userSymbol": "LodashGS",
+        "version": "6",
+        "libraryId": "1SQ0PlSMwndIuOAgtVJdjxsuXueECtY9OGejVDS37ckSVbMll73EXf2PW"
+      }
+    ]
+  }
+}

@@ -1,0 +1,330 @@
+
+function pullGameHighlights(gameState) {
+  var _ = LodashGS.load();
+
+  gameState = gameState ?? loadPreviousGameState()
+  //getGameContent
+  url = `https://statsapi.mlb.com/api/v1/game/${gameState.gamePk}/content` //+ hydrations
+  Logger.log(url)
+  
+  
+  let response = JSON.parse(UrlFetchApp.fetch(url))//.getContentText();
+  content = response
+
+  //Logger.log('content')
+  //Logger.log(content)
+  //content = getGameContent();
+
+
+  highlights = content.highlights.highlights.items
+  freeGame = content.media.freeGame
+
+  //Logger.log(highlights)
+
+  //for (item of highlights)
+    //{Logger.log(`${item.date} ${item.headline}` )}
+  
+  highlights = _.sortBy(highlights, 'date')
+
+  //Logger.log('array sorted')
+  for (item of highlights) {
+    eventDate = new Date(item.date)
+    mp4Link = ''
+    for (link of item.playbacks) {
+      if (link.name == 'mp4Avc') {
+       item.link = link.url
+        break;
+      }
+    }
+
+    //Logger.log(`${eventDate} ${item.duration} ${item.headline} ${mp4Link}` )
+  }
+
+  //Logger.log(new Date())
+
+  return [highlights, freeGame]
+}
+
+
+function processGameHighlights(gameState) {
+  gameState = gameState ?? loadPreviousGameState();
+  [highlights, freeGame] = pullGameHighlights(gameState)
+  gameState.highlightHeadline = highlights[highlights.length - 1].headline
+  gameState.highlightDuration = highlights[highlights.length - 1].duration
+  gameState.highlightLink = highlights[highlights.length - 1].link
+  gameState.highlightOutput = `=HYPERLINK("${gameState.highlightLink}","${gameState.highlightHeadline}")`
+  gameState.freeGame = freeGame;
+
+  //Logger.log(gameState.highlightDuration)
+  //Logger.log(gameState.highlightHeadline + " " + previousGameState.highlightHeadline)
+
+  //output all game media when length changes
+  //if(gameState.gameMediaArrayLength != highlights.length) {
+  outputHighlights = []
+
+  for (let h of highlights) {
+    var dateTime = new Date(h.date);
+    var timezone = Session.getScriptTimeZone();
+    dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
+    outputHighlights.push([dateTime, h.duration, `=HYPERLINK("${h.link}","${h.headline}")`, h.description])
+  }
+
+
+  gameState.gameMediaArrayLength = highlights.length;
+  //get date and time info
+  var timezone = Session.getScriptTimeZone();
+  var dateTime = new Date();
+  dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
+  sheet.getRange(2,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+
+  return [gameState, outputHighlights]
+}
+
+
+
+function postGameVideo(gameState) {
+  if (gameState.highlightHeadline != previousGameState.highlightHeadline) {
+    //writeMediaLog(gameState.highlightDuration, gameState.highlightOutput)
+
+    var [hour, min, sec] = gameState.highlightDuration.split(":")
+
+    Logger.log('duration split')
+    Logger.log([hour, min, sec])
+
+    scoringPlayTerms = ['homer','RBI','double','single','score','run','triple','home run','homerun','sac fly', 'sacrifice fly', 'grand slam', 'walks it off', 'walk-off', 'win']
+
+    scoringPlay = false;
+    
+    for (let i = 0; i < scoringPlayTerms.length; i++) {
+      if (gameState.highlightHeadline.toLowerCase().search(scoringPlayTerms[i]) != -1) {
+        scoringPlay = true;
+        Logger.log('scoring play found=' + scoringPlayTerms[i])
+        break;
+      }
+    }
+
+    Logger.log('scoringPlay=' + scoringPlay)
+
+    //&& min == '00'
+
+    if (gameState.mediaActive && mediaReplyThreshold(previousGameState.lastPostTime) && min == '00' && (scoringPlay || gameState.detailedState == 'Final' || gameState.detailedState == 'Game Over')) {
+      Logger.log('post reply with media by ' + previousGameState.lastPostTime)
+
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
+      var postCount = Number(sheet.getRange(1,8,1,1).getValues());
+
+      var dateTime = new Date();
+      var timezone = Session.getScriptTimeZone();
+      dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");  
+
+
+
+      //post media and once posted, set to false until next media-eligible event
+      Logger.log('downloadAndPostVideo')
+      let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState);
+      gameState.mediaActive = false
+
+      Logger.log("output to Posts")
+      sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.highlightOutput, gameState.highlightOutput , blueskyLink]]);
+      sheet.getRange(1,8,1,1).setValue(  [Number(postCount + 1)] );
+    }
+  }
+
+
+  return gameState;
+
+}
+
+
+
+function clearCurrentGameMedia() {
+  //clear current game media tab
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
+  sheet.getRange(2,1,100,4).clearContent();
+}
+
+
+
+function writeMediaLog() {
+  Logger.log('writeMediaLog')
+  Logger.log(gameState)
+  gameState = loadPreviousGameState();
+  var [gameState, outputHighlights] = processGameHighlights(gameState);
+  //highlightOutput = "=HYPERLINK(\"https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-06/17/cc2992b5-c779d3ef-ef1f4c06-csvm-diamondgcp-asset-4000K.mp4\",\"Antonio Senzatela escapes trouble in the 2nd\")"
+  Logger.log(gameState)
+  Logger.log(outputHighlights)
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Media Log");
+  var postCount = Number(sheet.getRange(1,10,1,1).getValues());
+
+  var timezone = Session.getScriptTimeZone();
+  var dateTime = new Date();
+  dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
+  sheet.getRange(1 + postCount,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+
+  //clear current game media tab
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
+  sheet.getRange(2,1,100,4).clearContent();
+
+  //remove trigger after run
+  setGameTrigger(4)
+
+}
+
+
+
+function downloadAndPostVideo(gameState) {
+  gameState = gameState ?? loadPreviousGameState()
+
+  url = gameState.highlightLink
+  //testing 10 second video
+  //url = 'https://darkroom-clips.mlb.com/e6520bda-90aa-4f69-a543-8a9d90312a35.mp4'
+  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/11/53bbe3ef-99e51b6d-ff1e3854-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+  //url = 'https://bdata-producedclips.mlb.com/f07110f6-6cff-45cc-b4f3-2989a9ecd3fb.mp4'
+  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/32a016a6-bc54455f-3a30c29c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/4bb5f698-7e8ed0df-fc3bfffa-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+  //url = 'https://bdata-producedclips.mlb.com/dfda3a1d-6ac0-4cee-a9f2-e67c0c3db3bf.mp4'
+  
+  Logger.log('gameState.highlightLink=' + gameState.highlightLink)
+  
+  try {
+    var blobLarge = UrlFetchApp.fetch(url).getBlob()//.getBytes();  // added .getBytes()
+  } catch (error) {
+    Logger.log('createFile Video')
+    Logger.log(error);
+    var blobLarge = null
+  }
+
+  if (blobLarge === null)
+    return null
+
+
+  //Logger.log('downloaded blob')
+  //Logger.log(blobLarge)
+
+  //Logger.log('blobLarge=' + blobLarge)
+  //blobLargeID = createFile(blobLarge)
+
+  //Logger.log(blobLarge)
+
+  var width = 400; // Please set the size of width with the unit of pixels.
+  var outputFilename = "tempBlueskyVideo.mp4"; // Please set the output filename.
+
+  var dir = DriveApp.getFoldersByName('BlueskyImages').next();
+  //var fileId = dir.createFile(blobLarge).getId();
+  //var link = Drive.Files.get(fileId).thumbnailLink;
+
+  //Logger.log(link)
+
+
+  if (gameState.highlightHeadline[gameState.highlightHeadline.length-1] == '.') {
+    gameState.highlightHeadline = gameState.highlightHeadline.substring(0, gameState.highlightHeadline.length - 1)
+  }
+
+  data = uploadVideoSimple(blobLarge.getBytes())
+
+  //data = {size:'1.7635081E7', ref: {'$link=bafkreihx3jr6pvt3dkxxguefpkz6udkqj3gg2i7nejwzdus2cntuphfkrm'}, mimeType='video/x-m4v', $type='blob'}
+
+  Logger.log('data.blob')
+  Logger.log(data.blob)
+
+  var type = data.blob['$type']
+  var ref = data.blob.ref
+  var size = data.blob.size
+  var mimeType = data.blob.mimeType
+  
+
+  message = `${getSynonym(gameState.mediaSynonym)}
+
+${allTeamInfo()[gameState.mediaTeam].teamName} — ${gameState.highlightHeadline}:`
+
+  record = {
+    text: message,
+    langs: ["en"],
+    createdAt: (new Date()).toISOString(),
+    embed: {
+      $type: 'app.bsky.embed.video',
+        video: {
+          '$type': type,
+          'ref': ref,
+          'size': size,
+          'mimeType': mimeType
+        },
+        aspectRatio: {
+            width: 1280,
+            height: 720
+        }
+    }
+  }
+
+  let [blueskyLink, uri, cid] = post(record, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid}, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid})
+
+
+  return [blueskyLink, uri, cid]
+
+}
+
+
+
+function testTruncateString() {
+let highlightHeadline = 'Ketel Marte doubles (18) on a sharp line drive to center fielder Brenton Doyle. Jose Herrera scores. Geraldo Perdomo scores.'
+Logger.log(highlightHeadline)
+    if (highlightHeadline[highlightHeadline.length-1] == '.') {
+    highlightHeadline = highlightHeadline.substring(0, highlightHeadline.length - 1)
+  }
+
+Logger.log(highlightHeadline)
+
+}
+
+
+function setMediaTeam(gameState) {
+  if (gameState.inningState == 'Top' || gameState.inningState == 'Middle' ) {
+    gameState.mediaTeam = gameState.awayTeam
+  }
+  else // if (gameState.inningState == 'Bottom' || gameState.inningState == 'End' )
+  {
+    gameState.mediaTeam = gameState.homeTeam
+  }
+  return gameState.mediaTeam
+}
+
+
+function testMediaTeam(gameState) {
+  gameState = gameState ?? loadPreviousGameState()
+  //Logger.log(gameState[gameState.myTeamHomeStatus + 'Team'])
+  //Logger.log(gameState[gameState.opponentHomeStatus + 'Team'])
+
+  //allTeamInfo = allTeamInfo()
+
+  if (gameState.inningState == 'Top' || gameState.inningState == 'Middle' ) {
+    gameState.mediaTeam = gameState.awayTeam
+  }
+  else // if (gameState.inningState == 'Bottom' || gameState.inningState == 'End' )
+  {
+    gameState.mediaTeam = gameState.homeTeam
+  }
+
+  Logger.log(allTeamInfo()[gameState.mediaTeam].clubName)
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
