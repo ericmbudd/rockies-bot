@@ -4,7 +4,7 @@ function getFeedGenerator(feedURI) {
 
   //hardcoded hack
   feedURI = 'at://did:plc:dkanfr5ivoi3hat7pz6fjiat/app.bsky.feed.generator/coloradorox'
-  //feedURI = 'at://did:plc:dkanfr5ivoi3hat7pz6fjiat/app.bsky.feed.generator/playoffmlb'
+  //feedURI = 'at://did:plc:dkanfr5ivoi3hat7pz6fjiat/app.bsky.feed.generator/playoffmlb' 
   const url = 'https://bsky.social/xrpc/app.bsky.feed.getFeedGenerator?feed=' + encodeURIComponent(feedURI);
 
   const options = {
@@ -20,7 +20,9 @@ function getFeedGenerator(feedURI) {
 }
 
 
-
+function getByteLength(str) {
+  return Utilities.newBlob(str).getBytes().length;
+}
 
 function loadData() {
   const url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
@@ -36,64 +38,135 @@ function loadData() {
       'Content-Type': 'application/json; charset=UTF-8',
     },
     'payload': JSON.stringify(data),
+    'muteHttpExceptions': true // Add this for robustness
   };
 
-  const response = UrlFetchApp.fetch(url, options);
-  return JSON.parse(response.getContentText());
+  let sessionResponse;
+  try {
+    sessionResponse = UrlFetchApp.fetch(url, options);
+  } catch (e) {
+    Logger.log('Error fetching session data: ' + e.toString());
+    throw new Error("Failed to create Bluesky session.");
+  }
+
+  const sessionCode = sessionResponse.getResponseCode();
+  const sessionText = sessionResponse.getContentText();
+
+  if (sessionCode >= 400) {
+    Logger.log(`Error creating Bluesky session. Status: ${sessionCode}. Response: ${sessionText}`);
+    throw new Error("Failed to create Bluesky session.");
+  }
+  const sessionData = JSON.parse(sessionText);
+  Logger.log('Bluesky session created successfully. DID: ' + sessionData.did);
+
+  // Fetch didDoc to get PDS service endpoint
+  try {
+    const describeRepoUrl = `https://bsky.social/xrpc/com.atproto.repo.describeRepo?repo=${sessionData.did}`;
+    const describeRepoOptions = {
+      'headers': {
+        'Authorization': 'Bearer ' + sessionData.accessJwt
+      },
+      'muteHttpExceptions': true // Add this for robustness
+    };
+    const describeRepoResponse = UrlFetchApp.fetch(describeRepoUrl, describeRepoOptions);
+    const describeRepoCode = describeRepoResponse.getResponseCode();
+    const describeRepoText = describeRepoResponse.getContentText();
+
+    if (describeRepoCode >= 400) {
+      Logger.log(`Error fetching didDoc. Status: ${describeRepoCode}. Response: ${describeRepoText}`);
+      sessionData.didDoc = null; // Explicitly null on error
+    } else {
+      sessionData.didDoc = JSON.parse(describeRepoText);
+      Logger.log('didDoc fetched successfully: ' + JSON.stringify(sessionData.didDoc));
+    }
+  } catch (e) {
+    Logger.log('Exception fetching didDoc: ' + e.toString());
+    sessionData.didDoc = null; // Ensure it's explicitly null if fetching fails
+  }
+  
+  if (!sessionData.didDoc) {
+    Logger.log('Warning: didDoc could not be fetched. This might affect video uploads if PDS DID cannot be determined.');
+  }
+
+  return sessionData;
+}
+
+function getPdsInfo(loadedData) {
+  let pdsEndpoint = 'https://bsky.social';
+  let pdsDid = '';
+  let pdsDoc = null;
+
+  if (loadedData && loadedData.didDoc) {
+    pdsDoc = loadedData.didDoc.didDoc || loadedData.didDoc;
+  }
+
+  if (pdsDoc && pdsDoc.service && Array.isArray(pdsDoc.service)) {
+    const pdsService = pdsDoc.service.find(s => {
+      if (!s) return false;
+      const id = (s.id || '').toString().toLowerCase();
+      const type = (s.type || '').toString().toLowerCase();
+      return id === '#atproto_pds' || id === '#pds' || type === 'atprotopersonaldataserver' || type === 'atproto_pds' || type === 'atprotopds' || type === 'pds';
+    });
+
+    if (pdsService && pdsService.serviceEndpoint) {
+      pdsEndpoint = Array.isArray(pdsService.serviceEndpoint)
+        ? pdsService.serviceEndpoint[0]
+        : pdsService.serviceEndpoint;
+    }
+  }
+
+  const hostnameMatch = pdsEndpoint.toString().match(/^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i);
+  if (hostnameMatch && hostnameMatch[1]) {
+    pdsDid = `did:web:${hostnameMatch[1]}`;
+  }
+
+  return { pdsEndpoint, pdsDid };
 }
 
 function getUrlInfo(url) {
-  var content
-
+  const fallbackImageUrl = 'https://builds.mlbstatic.com/mlb.com/builds/site-core/1606751303311/dist/images/favicon.png';
+  let content;
+  let imageUrl;
+  let title = '';
+  let description = '';
+  
   try {
     content = UrlFetchApp.fetch(url).getContentText();
+    const $ = Cheerio.load(content);
+
+    imageUrl = $('meta[property="og:image"]').attr('content');
+    if (imageUrl === undefined) {
+      imageUrl = $('meta[name="twitter:image"]').attr('content');
+    }
+    if (imageUrl === undefined) {
+      imageUrl = $('.wp-block-image img').attr('src');
+    }
+
+    title = $('title').text();
+    description = $('meta[name="description"]').attr('content');
+    if (description === undefined) {
+      description = $('meta[property="og:description"]').attr('content');
+    }
+    if (description === undefined) {
+      description = $('meta[name="twitter:title"]').attr('content');
+    }
+    if (description === undefined) {
+      description = $('title').text().trim();
+    }
   } catch (error) {
-    //error on HTTP / 404 etc
-    Logger.log('getUrlInfo')
+    Logger.log('Error fetching URL info for: ' + url);
     Logger.log(error)
-    return;
-    // Expected output: ReferenceError: nonExistentFunction is not defined
-    // (Note: the exact output may be browser-dependent)
+    // If fetching fails, use fallback image and empty title/description
+    imageUrl = fallbackImageUrl;
+    title = '';
+    description = '';
   }
 
-
-  //cheeriogs https://github.com/tani/cheeriogs
-  //cheerio tester https://scrapeninja.net/cheerio-sandbox/basic
-  const $ = Cheerio.load(content);
-
-  var imageUrl = $('meta[property="og:image"]').attr('content');
-  if (imageUrl === undefined)
-   { imageUrl = $('meta[name="twitter:image"]').attr('content'); }
-  if (imageUrl === undefined)
-   { imageUrl = $('.wp-block-image img').attr('src'); }
-  if (imageUrl === undefined)
-   { imageUrl = 'https://www.mlbstatic.com/mlb.com/images/logos/apple-touch-icons-180x180/mlb.png'}
-
-
-
-  //Logger.log("imageUrl=" + imageUrl)
-
-  var title = $('title').text();
-  var description = $('meta[name="description"]').attr('content');
-
-  //Logger.log('description 1')
-  //Logger.log(description)
-
-  if (description === undefined)
-   { description = $('meta[property="og:description"]').attr('content'); }
-  if (description === undefined)
-   { description = $('meta[name="twitter:title"]').attr('content'); }
-  if (description === undefined)
-   { description = $('title').text().trim(); }
-
-
-  //Logger.log('description 2')
-  //Logger.log(description)
-
-  //why did I do this? maybe to keep from blowing up if not present in JSON property
-  //if ( imageUrl === undefined)
-  //  imageUrl = url
-
+  // Ensure imageUrl is always set, even if not found in metadata
+  if (imageUrl === undefined || imageUrl === '') {
+    imageUrl = fallbackImageUrl;
+  }
+  
   return {
     'title': title,
     'description': description,
@@ -101,55 +174,59 @@ function getUrlInfo(url) {
   }
 }
 
-function createFile(data) {
-  var blob = Utilities.newBlob(data, 'application/png', 'tempBluesky.png');
-  var dir = DriveApp.getFoldersByName('BlueskyImages').next();
-  var doc = dir.createFile(blob);
-
-  var id = doc.getId();
-
-  return id
-  //Logger.log(id)
-  //DriveApp.getFileById(id.getId()).setTrashed(true);
-}
-
 function getImageAndShrink(imageUrl) {
-  //var imageUrl = 'https://newspack-coloradosun.s3.amazonaws.com/wp-content/uploads/2023/09/sanford-smith-candlewyck-os-1.png'
-  //Logger.log('getImageAndShrinkURL=' + imageUrl)
-  
+  var blob, file, fileId, link, blob2;
   try {
-    var blobLarge = UrlFetchApp.fetch(imageUrl).getBlob().getBytes();  // added .getBytes()
+    blob = UrlFetchApp.fetch(imageUrl).getBlob();
+    if (!blob) {
+        Logger.log('Failed to fetch image blob from: ' + imageUrl);
+        return null;
+    }
+    blob.setName("temp_thumb_" + new Date().getTime());
   } catch (error) {
-    Logger.log('createFile 1')
-    Logger.log(error);
-    var blobLarge = null
+    Logger.log('Error fetching image for shrinking: ' + error.toString());
+    Logger.log('Image URL: ' + imageUrl);
+    return null;
   }
 
-  if (blobLarge === null)
-    return null
-
-  //Logger.log('blobLarge=' + blobLarge)
-  blobLargeID = createFile(blobLarge)
-
-  var width = 400; // Please set the size of width with the unit of pixels.
-  var outputFilename = "tempBluesky3.png"; // Please set the output filename.
-
   try {
-    var blob1 = UrlFetchApp.fetch(imageUrl).getBlob().setName("sampleImage_temporal");
-  } catch (error) {
-    Logger.log('createFile 2')
-    Logger.log(error);
-    var blob1 = null
+    // Note: This requires the Advanced Drive API service to be enabled in the Apps Script editor.
+    file = Drive.Files.insert({ title: blob.getName() }, blob, { supportsAllDrives: true });
+    fileId = file.id;
+    
+    // The thumbnailLink can take a few moments to generate.
+    // We'll poll for it a few times with a delay.
+    for (let i = 0; i < 5; i++) {
+        file = Drive.Files.get(fileId, { supportsAllDrives: true });
+        if (file.thumbnailLink) {
+            break;
+        }
+        Logger.log('Thumbnail link not available yet for fileId: ' + fileId + '. Waiting...');
+        Utilities.sleep(2000); // Wait 2 seconds
+    }
+
+    if (!file.thumbnailLink) {
+        Logger.log('Thumbnail link could not be generated for fileId: ' + fileId);
+        Drive.Files.remove(fileId, { supportsAllDrives: true });
+        return null;
+    }
+
+    var width = 400;
+    var outputFilename = "tempBluesky3.png"; // The thumbnail is always PNG
+    link = file.thumbnailLink.replace(/\=s.+/, "=s" + width);
+    blob2 = UrlFetchApp.fetch(link).getBlob().setName(outputFilename);
+
+  } catch (e) {
+    Logger.log('Error during Drive operations for image shrinking: ' + e.toString());
+    if (fileId) {
+      try { Drive.Files.remove(fileId, { supportsAllDrives: true }); } catch (removeError) { /* ignore */ }
+    }
+    return null;
+  } finally {
+    if (fileId) {
+      try { Drive.Files.remove(fileId, { supportsAllDrives: true }); } catch (removeError) { /* ignore */ }
+    }
   }
-
-  var dir = DriveApp.getFoldersByName('BlueskyImages').next();
-  var fileId = dir.createFile(blob1).getId();
-  var link = Drive.Files.get(fileId).thumbnailLink.replace(/\=s.+/, "=s" + width);
-  var blob2 = UrlFetchApp.fetch(link).getBlob().setName(outputFilename);
-  //var file = DriveApp.createFile(blob2);
-  Drive.Files.remove(fileId);
-  Drive.Files.remove(blobLargeID);
-
 
   return blob2;
 }
@@ -159,82 +236,126 @@ function uploadForImageLink(imageUrl) {
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
   var blob = getImageAndShrink(imageUrl);
-
-  Logger.log(imageUrl)
+  
+  if (!blob) {
+    Logger.log('uploadForImageLink: Could not get image blob from URL: ' + imageUrl);
+    return null;
+  }
 
   const options = {
     'method': 'post',
     'headers': {
-    'Authorization': 'Bearer ' + accessJwt
+      'Authorization': 'Bearer ' + accessJwt,
+      'Content-Type': blob.getContentType()
     },
-    ...(blob != null && {'payload': blob.getBytes()}),
+    'payload': blob.getBytes(),
+    'muteHttpExceptions': true
   };
 
   const url = 'https://bsky.social/xrpc/com.atproto.repo.uploadBlob';
-
-//Logger.log(options)
-
-
   const response = UrlFetchApp.fetch(url, options);
-  //Logger.log("uploadForImageLink response=" + response)
+  const responseCode = response.getResponseCode();
+  const responseText = response.getContentText();
 
-  return JSON.parse(response.getContentText());
+  if (responseCode >= 400) {
+    Logger.log(`Error uploading image blob. Status: ${responseCode}. Response: ${responseText}`);
+    return null;
+  }
+
+  return JSON.parse(responseText);
 }
 
 //mimeType
 //video/x-m4v
 //video/mp4
 
-function uploadVideoSimple(blob) {
+function uploadVideoSimple(blob, mimeType = 'video/mp4') {
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
+  const { pdsEndpoint } = getPdsInfo(loadedData);
   const options = {
     'method': 'post',
     'headers': {
-    'Authorization': 'Bearer ' + accessJwt,
-    'Content-Type': 'video/x-m4v'
+      'Authorization': 'Bearer ' + accessJwt,
+      'Content-Type': mimeType
     },
-    'payload': blob
-    } 
+    'payload': blob,
+    'muteHttpExceptions': true
+  };
 
-  const url = 'https://bsky.social/xrpc/com.atproto.repo.uploadBlob';
+  const url = pdsEndpoint + '/xrpc/com.atproto.repo.uploadBlob';
 
-  const response = UrlFetchApp.fetch(url, options);
-  Logger.log("uploadVideoSimple response=" + response)
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    Logger.log('uploadVideoSimple response code=' + responseCode + ' body=' + responseText);
 
-  return JSON.parse(response.getContentText());
+    if (responseCode >= 400) {
+      Logger.log(`uploadVideoSimple failed: ${responseCode} ${responseText}`);
+      return null;
+    }
+
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      Logger.log('Error parsing uploadVideoSimple response: ' + e.toString());
+      return null;
+    }
+  } catch (e) {
+    Logger.log('Error in uploadVideoSimple: ' + e.toString());
+    return null;
+  }
 }
 
 function uploadVideoRecommended(blob, mimeType = 'video/mp4') {
+  // Normalize unsupported MIME types to supported ones
+  if (mimeType === 'video/x-m4v' || mimeType === 'video/m4v') {
+    mimeType = 'video/mp4';
+  }
+
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
   const did = loadedData.did;
-  const didDoc = loadedData.didDoc;
+  const { pdsEndpoint, pdsDid } = getPdsInfo(loadedData);
 
-  // Extract PDS endpoint from didDoc to dynamically form the PDS DID
-  let pdsDid = '';
-  if (didDoc && didDoc.service) {
-    const pdsService = didDoc.service.find(s => s.id === '#atproto_pds');
-    if (pdsService && pdsService.serviceEndpoint) {
-      pdsDid = pdsService.serviceEndpoint.replace('https://', 'did:web:').replace('http://', 'did:web:');
-    }
+  Logger.log('=== uploadVideoRecommended CONFIG ===');
+  Logger.log('User DID: ' + did);
+  Logger.log('PDS Endpoint: ' + pdsEndpoint);
+  Logger.log('PDS DID (aud): ' + pdsDid);
+
+  if (!pdsDid) {
+    Logger.log('PDS DID could not be determined from didDoc. Video upload will not proceed with an invalid audience.');
+    throw new Error('Unable to determine PDS DID from didDoc for video upload auth token.');
   }
-  if (!pdsDid) throw new Error("Could not determine PDS DID from session.");
 
   const exp = Math.floor(Date.now() / 1000) + (60 * 30); // 30 minutes
-
-  // 1. Get service auth token for the video service (upload)
-  const uploadAuthUrl = 'https://bsky.social/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=com.atproto.repo.uploadBlob&exp=' + exp;
   const authOptions = {
     'method': 'get',
     'headers': {
       'Authorization': 'Bearer ' + accessJwt
-    }
+    },
+    'muteHttpExceptions': true
   };
-  const uploadAuthResponse = JSON.parse(UrlFetchApp.fetch(uploadAuthUrl, authOptions).getContentText());
-  const uploadVideoToken = uploadAuthResponse.token;
 
-  // 2. Upload the video directly to the Bluesky video service
+  let uploadVideoToken;
+  const uploadAuthUrl = pdsEndpoint + '/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=com.atproto.repo.uploadBlob&exp=' + exp;
+  try {
+    Logger.log('Fetching video upload auth token for PDS DID: ' + pdsDid + ' via ' + pdsEndpoint);
+    const uploadAuthResponseRaw = UrlFetchApp.fetch(uploadAuthUrl, authOptions);
+    const uploadAuthCode = uploadAuthResponseRaw.getResponseCode();
+    const uploadAuthText = uploadAuthResponseRaw.getContentText();
+    if (uploadAuthCode >= 400) {
+      Logger.log(`Error fetching video upload auth token. Status: ${uploadAuthCode}. Response: ${uploadAuthText}`);
+      throw new Error('Failed to get video upload auth token.');
+    }
+    uploadVideoToken = JSON.parse(uploadAuthText).token;
+  } catch (e) {
+    Logger.log('Error fetching video upload auth token: ' + e.toString());
+    throw new Error('Failed to get video upload auth token.');
+  }
+
+  Logger.log('Uploading video blob to Bluesky video service...');
   const uploadUrl = 'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?did=' + encodeURIComponent(did) + '&name=video.mp4';
   const uploadOptions = {
     'method': 'post',
@@ -243,249 +364,176 @@ function uploadVideoRecommended(blob, mimeType = 'video/mp4') {
       'Content-Type': mimeType
     },
     'payload': blob,
-    'muteHttpExceptions': true
+    'muteHttpExceptions': true,
+    'timeout': 120
   };
-  
-  const uploadResponseRaw = UrlFetchApp.fetch(uploadUrl, uploadOptions);
-  const uploadResponse = JSON.parse(uploadResponseRaw.getContentText());
-  const responseCode = uploadResponseRaw.getResponseCode();
-  
-  if (responseCode !== 200 && responseCode !== 409) {
-    throw new Error("Video upload failed: " + uploadResponseRaw.getContentText());
+
+  let uploadResponseRaw;
+  try {
+    Logger.log('Sending video upload request to: ' + uploadUrl);
+    Logger.log('Video blob size: ' + (blob.length || blob.byteLength || 0) + ' bytes');
+    uploadResponseRaw = UrlFetchApp.fetch(uploadUrl, uploadOptions);
+  } catch (e) {
+    Logger.log('Error during video upload to Bluesky video service: ' + e.toString());
+    throw new Error('Video upload to Bluesky video service failed.');
   }
-  
+
+  const responseCode = uploadResponseRaw.getResponseCode();
+  const uploadResponseText = uploadResponseRaw.getContentText();
+  Logger.log('uploadVideoRecommended response code=' + responseCode + ' body=' + uploadResponseText);
+
+  let uploadResponse;
+  try {
+    uploadResponse = JSON.parse(uploadResponseText);
+  } catch (e) {
+    throw new Error('Video upload returned non-JSON response: ' + uploadResponseText);
+  }
+
+  if (responseCode !== 200 && responseCode !== 409) {
+    throw new Error('Video upload failed: ' + uploadResponseText);
+  }
+
+  let processedBlob = uploadResponse.blob || null;
+  if (processedBlob) {
+    if (!processedBlob.$type) {
+      processedBlob.$type = 'blob';
+    }
+    Logger.log('Video service returned blob immediately.');
+    return { blob: processedBlob };
+  }
+
   const jobId = uploadResponse.jobId;
+  Logger.log('Video uploaded to video.bsky.app. Job ID: ' + jobId + (responseCode === 409 ? ' (Already processed)' : ''));
 
-  Logger.log("Video uploaded to video.bsky.app. Job ID: " + jobId + (responseCode === 409 ? " (Already processed)" : ""));
+  if (!jobId) {
+    throw new Error('Video upload response did not include a jobId or blob.');
+  }
 
-  // 3. Get service auth token for the video service (status polling)
-  const statusAuthUrl = 'https://bsky.social/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=app.bsky.video.getJobStatus&exp=' + exp;
-  const statusAuthResponse = JSON.parse(UrlFetchApp.fetch(statusAuthUrl, authOptions).getContentText());
-  const statusVideoToken = statusAuthResponse.token;
+  let statusVideoToken;
+  const statusAuthUrl = pdsEndpoint + '/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=app.bsky.video.getJobStatus&exp=' + exp;
+  try {
+    Logger.log('Fetching video status auth token for PDS DID: ' + pdsDid + ' via ' + pdsEndpoint);
+    const statusAuthResponseRaw = UrlFetchApp.fetch(statusAuthUrl, authOptions);
+    const statusAuthCode = statusAuthResponseRaw.getResponseCode();
+    const statusAuthText = statusAuthResponseRaw.getContentText();
+    if (statusAuthCode >= 400) {
+      Logger.log(`Error fetching video status auth token. Status: ${statusAuthCode}. Response: ${statusAuthText}`);
+      throw new Error('Failed to get video status auth token.');
+    }
+    statusVideoToken = JSON.parse(statusAuthText).token;
+  } catch (e) {
+    Logger.log('Error fetching video status auth token: ' + e.toString());
+    throw new Error('Failed to get video status auth token.');
+  }
 
-  // 4. Poll for job completion
+  Logger.log('Polling for video processing status...');
   const statusUrl = 'https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=' + encodeURIComponent(jobId);
   const statusOptions = {
     'method': 'get',
     'headers': {
       'Authorization': 'Bearer ' + statusVideoToken
-    }
+    },
+    'muteHttpExceptions': true
   };
 
-  let jobState = '';
   let retries = 0;
-  while (jobState !== 'JOB_STATE_COMPLETED' && retries < 30) {
-    Utilities.sleep(3000); // Wait 3 seconds before each poll
-    const statusResponse = JSON.parse(UrlFetchApp.fetch(statusUrl, statusOptions).getContentText());
-    const jobStatus = statusResponse.jobStatus;
-    jobState = jobStatus.state;
+  const maxRetries = 60;
+  while (retries < maxRetries) {
+    if (retries > 0) {
+      Logger.log(`Waiting for video processing... Attempt ${retries + 1}/${maxRetries}`);
+    }
 
-    Logger.log("Video processing state: " + jobState + " (" + (jobStatus.progress || 0) + "%)");
+    Utilities.sleep(1000);
+    const statusResponseRaw = UrlFetchApp.fetch(statusUrl, statusOptions);
+    const statusResponseCode = statusResponseRaw.getResponseCode();
+    const statusResponseText = statusResponseRaw.getContentText();
+
+    Logger.log('Video status response code=' + statusResponseCode + ' body=' + statusResponseText);
+
+    if (statusResponseCode >= 400) {
+      throw new Error('Failed to poll video status: ' + statusResponseText);
+    }
+
+    const statusPayload = JSON.parse(statusResponseText);
+    const jobStatus = statusPayload.jobStatus || statusPayload;
+    const jobState = jobStatus.state || '';
+
+    Logger.log('Video processing state: ' + jobState + ' (' + (jobStatus.progress || 0) + '%)');
+
+    if (jobStatus.blob) {
+      processedBlob = jobStatus.blob;
+      if (!processedBlob.$type) {
+        processedBlob.$type = 'blob';
+      }
+      Logger.log('Video processing complete.');
+      return { blob: processedBlob };
+    }
 
     if (jobState === 'JOB_STATE_FAILED') {
-      throw new Error("Video processing failed: " + jobStatus.error);
-    } else if (jobState === 'JOB_STATE_COMPLETED') {
-      Logger.log("Video processing complete.");
-      return { blob: jobStatus.blob };
+      throw new Error('Video processing failed: ' + (jobStatus.error || statusResponseText));
     }
+
     retries++;
   }
 
-  throw new Error("Video processing timed out.");
+  throw new Error('Video processing timed out.');
 }
 
 
 function createThumb(imageUrl) {
-  //imageUrl = 'https://newspack-coloradosun.s3.amazonaws.com/wp-content/uploads/2023/09/sanford-smith-candlewyck-os-1.png'
-  //Logger.log('thumb url = ' + imageUrl)
-  
   const imageData = uploadForImageLink(imageUrl);
+  if (!imageData) {
+    Logger.log('Could not create thumbnail; uploadForImageLink returned null for imageUrl: ' + imageUrl);
+    return undefined;
+  }
 
-  const cid = imageData.blob.ref.$link;
-  const mimeType = imageData.blob.mimeType;
-
-
-  const thumb = imageData["blob"]
-
-  //Logger.log('thumb data = ' + thumb)
-
-/*
-  const thumb = {
-    '$type': 'blob',
-    'ref': {
-      '$link': "'" + cid + "'"
-    },
-    'mimeType': mimeType
-  };
-*/
-  return thumb;
+  // The Bluesky API expects the entire blob object, not just cid and mimeType
+  return imageData["blob"];
 }
 
 
-function createRecord(text, url, title, description, thumb, linkUrl, urlLocStart, urlLocEnd, feed) {
-if (urlLocStart != -1)
-  text = text.substring(0, urlLocStart).trim()
-
+function createRecord(text, facets, embed) { // Simplified parameters
   var record = {
     'text': text,
     'createdAt': (new Date()).toISOString(),
+  };
 
+  if (embed) {
+    record['embed'] = embed;
   }
-
-  if (thumb != undefined ) {
-    record['embed'] =  {
-      '$type': 'app.bsky.embed.external',
-      'external': {
-        'uri': url,
-        'title': title,
-        'description': description,
-        'thumb': thumb
-      }
-    }
+  
+  if (facets.length > 0) {
+    record['facets'] = facets;
   }
-
-  if (feed != undefined ) {
-    record['embed'] =  {
-      '$type': 'app.bsky.embed.record',
-      'record': {
-        'uri': feed.view.uri,
-        'cid': feed.view.cid
-      }
-    }
-  }
-
-//  if (url.search('http') != -1 ) {
-//    record['embed']['external']['uri'] = url
-//  }
-
-
-  //hashtag support
-  var tagLocStart = text.search('#');
-
-  if (tagLocStart > -1)
-  {  
-  var tagLocEnd = text.substring(tagLocStart).search(' ')
-
-  if (tagLocEnd === -1) {
-    var tag = text.substring(tagLocStart)
-    tagLocEnd = text.length - tagLocStart;
-  }
-  else {
-    var tag = text.substring(tagLocStart, tagLocStart + tagLocEnd)
-  }
-
-  //go through array of various characters that break index to count them
-  var utf8CharacterArray = ["•","…","’", "—", "“", "”", "á", "é", "í", "ü", "&nbsp;", "\
-\
-"];
-  var addToIndexCount = 0;
-
-  for (i=0; i < text.length; i++) {
-
-    for (j=0; j < utf8CharacterArray.length; j++) {
-      if (text[i] === utf8CharacterArray[j]) {
-        addToIndexCount = addToIndexCount + 2
-      }    
-    }
-  }
-
-  //Logger.log('addToIndexCount=' + addToIndexCount)  
-
-  //Logger.log("Tag start and end=" + tagLocStart + " "  + tagLocEnd)
-  //Logger.log(tag)
-
-
-    var urlFacet = 
-      [
-        {
-          'index': {
-            'byteStart': addToIndexCount + tagLocStart,
-            'byteEnd': addToIndexCount + tagLocStart + tagLocEnd
-          },
-          'features': [
-            {
-              $type: 'app.bsky.richtext.facet#tag',
-              tag: tag.replace(/^#/, ''),
-            }
-          ]
-        }
-      ]
-    record ['facets'] = urlFacet
-    //Logger.log(record)
-  }
-
-/*
-  if (urlLocEnd >= 299) {
-    text = text.substring(0, 299)
-    urlLocEnd = 299
-    record['text'] = text
-  }
-*/
-
-  //go through array of various characters that break index to count them
-  var utf8CharacterArray = ["•","…","’", "—", "–", "“", "”", "á", "é", "í", "ü", " \
-\
-"];
-  var addToIndexCount = 0;
-
-  for (i=0; i < text.length; i++) {
-
-    for (j=0; j < utf8CharacterArray.length; j++) {
-      if (text[i] === utf8CharacterArray[j]) {
-        addToIndexCount = addToIndexCount + 2
-        //Logger.log(utf8CharacterArray[j])
-      }    
-    }
-  }
-
-  text = text + '…'
-
-  //Logger.log('addToIndexCount=' + addToIndexCount) 
-
-  //Logger.log("URL start and end=" + urlLocStart + " " + urlLocEnd)
-
-  if (linkUrl != '' && urlLocStart > -1)
-  {
-    var urlFacet = 
-      [
-        {
-          'index': {
-            'byteStart': addToIndexCount + urlLocStart,
-            'byteEnd': addToIndexCount + urlLocStart + urlLocEnd
-          },
-          'features': [
-            {
-              '$type': 'app.bsky.richtext.facet#link',
-              'uri': linkUrl
-            }
-          ]
-        }
-      ]
-    record ['facets'] = urlFacet
-    //Logger.log(record)
-  }
-
-
-
-
 
   return record;
 }
 
 
-function createImageRecord(text, altText, imageData, linkUrl, urlLocStart, urlLocEnd, pInfo) {
-  //Logger.log(imageData.blob)
-  //Logger.log(imageData.blob['ref']['$link'])
+function createImageRecord(text, altText, imageData, linkUrl, urlLocStart, urlLocEnd) {
+  let recordText = text;
+  let facets = [];
 
-  if (urlLocEnd == 299) {
-    text = text.substring(0, 299)
+  if (linkUrl && linkUrl.trim() !== '' && urlLocStart !== -1) {
+    let byteStart = getByteLength(recordText.substring(0, urlLocStart));
+    let byteEnd = getByteLength(recordText.substring(0, urlLocEnd));
+
+    facets.push({
+      'index': {
+        'byteStart': byteStart,
+        'byteEnd': byteEnd
+      },
+      'features': [
+        {
+          '$type': 'app.bsky.richtext.facet#link',
+          'uri': linkUrl
+        }
+      ]
+    });
   }
 
-  textShort = text.length > 299 ? text.substring(0,299) : text
-
-  var record =
-  {
-    'text': textShort,
+  var record = {
+    'text': recordText,
     'createdAt': (new Date()).toISOString(),
     'embed': {
       '$type': 'app.bsky.embed.images',
@@ -493,58 +541,15 @@ function createImageRecord(text, altText, imageData, linkUrl, urlLocStart, urlLo
         'alt': altText,
         'image': imageData.blob,
         'aspectRatio': {
-            'width': pInfo.imageWidth,
-            'height': pInfo.imageHeight
+            'width': 1200,
+            'height': 675
         }
       }]
     }
-  }
-
-  //go through array of various characters that break index to count them
-  var utf8CharacterArray = ["•","…","’", "—", "–", "“", "”", "á", "é", "í", "ü", "\
-\
-"];
-  var addToIndexCount = 0;
-
-  for (i=0; i < text.length; i++) {
-
-    for (j=0; j < utf8CharacterArray.length; j++) {
-      if (text[i] === utf8CharacterArray[j]) {
-        addToIndexCount = addToIndexCount + 2
-        //Logger.log(utf8CharacterArray[j])
-      }    
-    }
-  }
-
-  text = text + '…'
-
-  //Logger.log('addToIndexCount=' + addToIndexCount) 
-
-
-
-  //Logger.log("URL start and end=" + urlLocStart + " " + urlLocEnd)
-
-  var byteEnd = addToIndexCount + urlLocStart + urlLocEnd > 299 ? 299 : addToIndexCount + urlLocStart + urlLocEnd
-
-  if (linkUrl != '' && urlLocStart > -1)
-  {
-    var urlFacet = 
-      [
-        {
-          'index': {
-            'byteStart': addToIndexCount + urlLocStart,
-            'byteEnd': byteEnd
-          },
-          'features': [
-            {
-              '$type': 'app.bsky.richtext.facet#link',
-              'uri': linkUrl
-            }
-          ]
-        }
-      ]
-    record ['facets'] = urlFacet
-    //Logger.log(record)
+  };
+  
+  if (facets.length > 0) {
+    record['facets'] = facets;
   }
 
   return record;
@@ -556,14 +561,19 @@ function post(record, root, parent) {
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
   const did = loadedData.did;
+  const { pdsEndpoint } = getPdsInfo(loadedData);
 
-  const url = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
+  const url = pdsEndpoint + '/xrpc/com.atproto.repo.createRecord';
 
   if (root && parent) {
-    record.reply = {}
+    record.reply = {};
     record.reply.root = root
     record.reply.parent = parent
   }  
+
+  if (!record['$type']) {
+    record['$type'] = 'app.bsky.feed.post';
+  }
 
   Logger.log(record)
 
@@ -580,34 +590,34 @@ function post(record, root, parent) {
       'Content-Type': 'application/json; charset=UTF-8'
     },
     'payload': JSON.stringify(data),
+    'muteHttpExceptions': true // Ensure this is always true for robust error handling
   };
 
 
   try {
     const response = UrlFetchApp.fetch(url, options);
-    //Logger.log(response.getContentText())
-    responseParsed = JSON.parse(response.getContentText())
-    var uri = responseParsed['uri']
-    var cid = responseParsed['cid']
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    Logger.log('post response code=' + responseCode + ', body=' + responseText);
 
-    //let uriStub = JSON.parse(response.getContentText())['uri']
-    postIdentifier = uri.substring(uri.lastIndexOf('/') + 1)
+    if (responseCode >= 400) {
+      Logger.log(`Error posting to Bluesky. Status: ${responseCode}. Response: ${responseText}`);
+      return [null, null, null];
+    }
 
-    blueskyLink = 'https://bsky.app/profile/didtherockieslose.bsky.social/post/' + postIdentifier
-    Logger.log("Bluesky post URL: " + blueskyLink)
+    responseParsed = JSON.parse(responseText);
+    var uri = responseParsed['uri'];
+    var cid = responseParsed['cid'];
+
+    postIdentifier = uri.substring(uri.lastIndexOf('/') + 1);
+
+    blueskyLink = 'https://bsky.app/profile/didtherockieslose.bsky.social/post/' + postIdentifier;
+    Logger.log("Bluesky post URL: " + blueskyLink);
+    return [blueskyLink, uri, cid];
   } catch (error) {
-    Logger.log('call post API')
-    Logger.log(error);
-
-    blueskyLink = 'Error = ' + error
-    // Expected output: ReferenceError: nonExistentFunction is not defined
-    // (Note: the exact output may be browser-dependent)
+    Logger.log('Error calling post API: ' + error.toString());
+    return ['Error = ' + error.toString(), null, null];
   }
-
-  
-  return [blueskyLink, uri, cid];
-  
-  //return responseJSON = JSON.parse(response.getContentText());
 }
 
 function testResponseParse () {
@@ -622,87 +632,117 @@ function testResponseParse () {
 }
 
 
-function postUrl(url, text, altText, linkUrl, urlLocStart, urlLocEnd, root, parent) {
-  //Logger.log("url=" + url)
-  url = url.search('http') != -1 ?  url : undefined
-  const urlInfo = url && getUrlInfo(url)
-  title = ''
-  description = ''
-  if (urlInfo != undefined ) {
-    var thumb = createThumb(urlInfo.imageUrl);
-    title = urlInfo.title
-    description = urlInfo.description
-  }
-
-  if (linkUrl.search('/feed/') != -1) {
-    var feed = getFeedGenerator(linkUrl)
-  }
-
+function postBluesky(postText, root, parent) {
+  Logger.log('Start postBluesky (main entry point)');
+  Logger.log('Original postText: ' + postText);
   
-  //Logger.log('thumb=' + thumb['cid'] + ' ' + thumb['mimeType'])
-  //Logger.log("urlInfo")
-  //Logger.log(urlInfo)
-  const record = createRecord(text, url, title, description, thumb, linkUrl, urlLocStart, urlLocEnd, feed)
+  let extractedLinkUrl = '';
+  let urlLocStart = -1;
+  let urlLocEnd = -1;
+  let facets = [];
+  let embed = undefined;
 
+  // 1. Extract URL from postText and create URL facet if present
+  urlLocStart = postText.search(/https?:\/\//); 
+  if (urlLocStart !== -1) {
+    var potentialUrlString = postText.substring(urlLocStart);
+    var firstWhitespaceIndex = potentialUrlString.search(/[\s\n\r]/);
+
+    extractedLinkUrl = (firstWhitespaceIndex === -1) ? potentialUrlString.trim() : potentialUrlString.substring(0, firstWhitespaceIndex).trim();
+    urlLocEnd = urlLocStart + extractedLinkUrl.length;
+
+    // Create URL facet
+    let byteStart = getByteLength(postText.substring(0, urlLocStart));
+    let byteEnd = getByteLength(postText.substring(0, urlLocEnd));
+    facets.push({
+      'index': {
+        'byteStart': byteStart,
+        'byteEnd': byteEnd
+      },
+      'features': [
+        {
+          '$type': 'app.bsky.richtext.facet#link',
+          'uri': extractedLinkUrl
+        }
+      ]
+    });
+
+    // 2. Attempt to create an embed for the extracted URL
+    let urlForEmbed = extractedLinkUrl;
+    let titleForEmbed = '';
+    let descriptionForEmbed = '';
+    let thumbForEmbed = undefined;
+
+    // Check for feed embed first
+    if (extractedLinkUrl.search('/feed/') != -1) {
+      let feedGenerator = getFeedGenerator(extractedLinkUrl);
+      if (feedGenerator) {
+        embed = {
+          '$type': 'app.bsky.embed.record',
+          'record': {
+            'uri': feedGenerator.view.uri,
+            'cid': feedGenerator.view.cid
+          }
+        };
+      }
+    } else { // If not a feed embed, try for an external link embed
+      const urlInfo = getUrlInfo(urlForEmbed);
+      if (urlInfo) {
+        thumbForEmbed = createThumb(urlInfo.imageUrl);
+        if (thumbForEmbed) { // Only create external embed if thumbnail is successfully created
+          titleForEmbed = urlInfo.title || '';
+          descriptionForEmbed = urlInfo.description || '';
+          embed = {
+            '$type': 'app.bsky.embed.external',
+            'external': {
+              'uri': urlForEmbed,
+              'title': titleForEmbed,
+              'description': descriptionForEmbed,
+              'thumb': thumbForEmbed
+            }
+          };
+        } else {
+          Logger.log('Could not create thumbnail for ' + urlForEmbed + '. Proceeding without external embed.');
+        }
+      } else {
+        Logger.log('getUrlInfo failed for ' + urlForEmbed + '. Proceeding without external embed.');
+      }
+    }
+  } else {
+    // If no URL was extracted from the text, it's a text-only post.
+    // No embed will be created in this case.
+    Logger.log('No URL found in post text. Creating text-only post.');
+  }
+
+  // 3. Add hashtag facet if present (always search in the full original text)
+  var tagLocStart = postText.search('#');
+  if (tagLocStart > -1) {
+    var tagEndIndex = postText.substring(tagLocStart).search(/[\s\n\r]/);
+    var tagContent = (tagEndIndex === -1) ? postText.substring(tagLocStart) : postText.substring(tagLocStart, tagLocStart + tagEndIndex);
+    
+    let tagByteStart = getByteLength(postText.substring(0, tagLocStart));
+    let tagByteEnd = getByteLength(postText.substring(0, tagLocStart + tagContent.length));
+
+    facets.push({
+      'index': {
+        'byteStart': tagByteStart,
+        'byteEnd': tagByteEnd
+      },
+      'features': [
+        {
+          $type: 'app.bsky.richtext.facet#tag',
+          tag: tagContent.replace(/^#/, ''),
+        }
+      ]
+    });
+  }
+
+  // 4. Create the record
+  const record = createRecord(postText, facets, embed);
+
+  // 5. Post the record
   let [blueskyLink, uri, cid] = post(record, root, parent);
   return [blueskyLink, uri, cid];
-}
-
-
-function postBluesky(postText, root, parent) {
-  Logger.log('Start Bluesky')
-  Logger.log(postText)
-  textPlusURL = ''
-  //var account = 'boulderprogress';
-
-  //always take top / first tweet to post (ordered by least recently used)
-  var tweetText = postText; //postInfo.postsArray[postInfo.singleTweetIndex][1];
-  var imageUrl = undefined //postInfo.postsArray[postInfo.singleTweetIndex][2];
-  var altText = undefined //postInfo.postsArray[postInfo.singleTweetIndex][3];
-
-
-  //const text = 'Testing a Bluesky bot';
-  //const url = 'https://bouldercoloradovoterguide.com/';
-
-  //address 404 error - use for testing:
-  //https://bizwest.com/2023/10/04/tayer-in-season-of-change-whats-your-test/
-
-
-  //var textPlusURL = '"The Boulder City Council on Thursday unanimously approved a long-term planning document that will guide redevelopment for an area of the city east of 30th Street known as Boulder Junction." #boulder https://boulderreportinglab.org/2023/09/22/more-housing-is-planned-for-boulder-junction-neighborhood-east-of-downtown/'
-
-  var urlLocStart = tweetText.search('https:');
-  if (urlLocStart == -1 )
-    urlLocStart = tweetText.search('http:');
-
-  if (tweetText.substring(urlLocStart).search('https:') == -1)
-    urlLocEnd = tweetText.length
-  else
-    urlLocEnd = urlLocStart + tweetText.substring(urlLocStart).search('[\n\r\s]+')
-
-  //Logger.log('urlLocStart=' + urlLocStart)
-  //Logger.log('urlLocEnd=' + urlLocEnd)
-  
-  var text = tweetText
-  var linkUrl = tweetText.substring(urlLocStart, tweetText.length).trim()
-  //Logger.log(text)
-  //Logger.log(linkUrl)
-
-  //Logger.log('imageUrl=' + imageUrl)
-
-  if (imageUrl == '' || imageUrl == undefined)
-    {
-      [blueskyLink, uri, cid] = postUrl(linkUrl, text, altText, linkUrl, urlLocStart, urlLocEnd, root, parent);
-    }
-  else
-    {
-      //postUrl(imageUrl, text, altText);
-      imageData = undefined// uploadImage(imageUrl)
-      record = createImageRecord(tweetText, altText, imageData, linkUrl, urlLocStart, urlLocEnd, pInfo)
-      //Logger.log(record)
-      [blueskyLink, uri, cid] = post(record, root, parent);
-    }
-
-    return [blueskyLink, uri, cid];
 }
 
 
@@ -710,36 +750,42 @@ function uploadImage(imageUrl) {
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
   var blob = getImage(imageUrl);
+  
+  if (!blob) {
+    Logger.log('uploadImage: Could not get image blob from URL: ' + imageUrl);
+    return null;
+  }
 
   const options = {
     'method': 'post',
     'headers': {
-    'Authorization': 'Bearer ' + accessJwt
+      'Authorization': 'Bearer ' + accessJwt,
+      'Content-Type': blob.getContentType()
     },
     'payload': blob.getBytes(),
+    'muteHttpExceptions': true
   };
 
   const url = 'https://bsky.social/xrpc/com.atproto.repo.uploadBlob';
-
   const response = UrlFetchApp.fetch(url, options);
-  //Logger.log("UploadImage response=" + response)
-  //Logger.log("UploadImage response.getContentText=" + JSON.parse(response.getContentText()))
-  return JSON.parse(response.getContentText());
+  const responseCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  if (responseCode >= 400) {
+    Logger.log(`Error uploading image blob in uploadImage. Status: ${responseCode}. Response: ${responseText}`);
+    return null;
+  }
+
+  return JSON.parse(responseText);
 }
 
 function getImage(imageUrl) {
-  //var imageUrl = 'https://newspack-coloradosun.s3.amazonaws.com/wp-content/uploads/2023/09/sanford-smith-candlewyck-os-1.png'
-  //Logger.log('getImage=' + imageUrl)
-  
   try {
     var blob = UrlFetchApp.fetch(imageUrl).getBlob();
   } catch (error) {
-    Logger.log('getImage')
+    Logger.log('getImage: Error fetching image from URL: ' + imageUrl);
     Logger.log(error);
-    var blob = null
+    var blob = null;
   }
-  
-
-  return blob
-  //return blobSmall;
+  return blob;
 }

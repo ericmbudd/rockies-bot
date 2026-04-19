@@ -59,9 +59,9 @@ function main(triggerUid) {
   gameState.lastPostBlueskyLink = previousGameState.lastPostBlueskyLink;
   gameState.lastPostParentUri = previousGameState.lastPostParentUri;
   gameState.lastPostParentCid = previousGameState.lastPostParentCid;
-  gameState.lastReplyBlueskyLink = previousGameState.lastReplyBlueskyLink;
-  gameState.lastReplyarentUri = previousGameState.lastReplyParentUri;
-  gameState.lastReplyarentCid = previousGameState.lastReplyParentCid;
+  gameState.lastReplyBlueskyLink = previousGameState.lastReplyBlueskyLink; // Typo: lastReplyParentUri
+  gameState.lastReplyParentUri = previousGameState.lastReplyParentUri; // Corrected: lastReplyParentUri
+  gameState.lastReplyParentCid = previousGameState.lastReplyParentCid; // Corrected: lastReplyParentCid
 
   gameState.postHistory = gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Final' ? [0] : previousGameState.postHistory;
 

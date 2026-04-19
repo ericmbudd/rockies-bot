@@ -45,6 +45,44 @@ function pullGameHighlights(gameState) {
   return [highlights, freeGame]
 }
 
+// New helper function to encapsulate defensive play posting logic
+function postDefensivePlayVideo(gameState) {
+  var [hour, min, sec] = gameState.highlightDuration.split(":")
+  var isShortVideo = (min == '00');
+
+  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'k', "k's", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
+  let defensivePlay = false;
+  let searchContent = (gameState.highlightHeadline + " " + (gameState.highlightDescription || "")).toLowerCase();
+  
+  for (let i = 0; i < defensivePlayTerms.length; i++) {
+    if (searchContent.search(defensivePlayTerms[i].toLowerCase()) != -1) {
+      defensivePlay = true;
+      Logger.log('   - Defensive play term found: ' + defensivePlayTerms[i])
+      break;
+    }
+  }
+
+  if (isShortVideo && defensivePlay) {
+    let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
+    if (tempMediaTeam === 'Colorado Rockies') {
+      Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
+      let tempMediaSynonym = 'wentOkSynonym';
+      const videoText = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '') 
+        ? gameState.highlightDescription 
+        : gameState.highlightHeadline;
+      let defensiveMessage = `${getSynonym(tempMediaSynonym)}
+${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
+
+      let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
+      recordPostToSheet(blueskyLink, gameState.highlightOutput); // Record the post
+      return true; // Indicate that a defensive post was made
+    } else {
+      Logger.log("   - Defensive video qualifies, but was not by the Rockies. Skipping post.");
+    }
+  }
+  return false; // No defensive post was made
+}
+
 
 function processGameHighlights(gameState) {
   gameState = gameState ?? loadPreviousGameState();
@@ -55,6 +93,9 @@ function processGameHighlights(gameState) {
   gameState.highlightDescription = highlights[highlights.length - 1].description || '';
   gameState.highlightOutput = `=HYPERLINK("${gameState.highlightLink}","${gameState.highlightHeadline}")`
   gameState.freeGame = freeGame;
+
+  // Removed: const defensivePostMade = postDefensivePlayVideo(gameState);
+  // The logic for processing highlights and queuing/posting is all in postGameVideo.
 
   //Logger.log(gameState.highlightDuration)
   //Logger.log(gameState.highlightHeadline + " " + previousGameState.highlightHeadline)
@@ -118,7 +159,7 @@ function postGameVideo(gameState) {
       }
     }
 
-    let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'glove', 'gunned down', 'induces', 'jam', 'k', "k's", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
+    let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'k', "k's", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
     let defensivePlay = false;
     
     for (let i = 0; i < defensivePlayTerms.length; i++) {
@@ -296,29 +337,44 @@ function writeMediaLog() {
 
 
 function downloadAndPostVideo(gameState, isReply = true, customPostText = null) {
-  gameState = gameState ?? loadPreviousGameState()
-
-  url = gameState.highlightLink
-  //testing 10 second video
-  //url = 'https://darkroom-clips.mlb.com/e6520bda-90aa-4f69-a543-8a9d90312a35.mp4'
-  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/11/53bbe3ef-99e51b6d-ff1e3854-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
-  //url = 'https://bdata-producedclips.mlb.com/f07110f6-6cff-45cc-b4f3-2989a9ecd3fb.mp4'
-  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/32a016a6-bc54455f-3a30c29c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
-  //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/4bb5f698-7e8ed0df-fc3bfffa-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
-  //url = 'https://bdata-producedclips.mlb.com/dfda3a1d-6ac0-4cee-a9f2-e67c0c3db3bf.mp4'
-  
-  Logger.log('gameState.highlightLink=' + gameState.highlightLink)
-  
   try {
-    var blobLarge = UrlFetchApp.fetch(url).getBlob()//.getBytes();  // added .getBytes()
+    gameState = gameState ?? loadPreviousGameState()
+
+    const videoUrl = gameState.highlightLink
+    Logger.log('gameState.highlightLink=' + videoUrl)
+    Logger.log('gameState.highlightHeadline=' + gameState.highlightHeadline)
+    Logger.log('gameState.highlightDescription=' + gameState.highlightDescription)
+    Logger.log('gameState.mediaTeam=' + gameState.mediaTeam)
+
+    const fetchOptions = {
+      'muteHttpExceptions': true, // Don't throw an exception on HTTP errors
+      'timeout': 120 // Set timeout to 120 seconds (2 minutes) for large video files
+    };
+    //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/11/53bbe3ef-99e51b6d-ff1e3854-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+    //url = 'https://bdata-producedclips.mlb.com/f07110f6-6cff-45cc-b4f3-2989a9ecd3fb.mp4'
+    //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/32a016a6-bc54455f-3a30c29c-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+    //url = 'https://mlb-cuts-diamond.mlb.com/FORGE/2025/2025-08/16/4bb5f698-7e8ed0df-fc3bfffa-csvm-diamondgcp-asset_1280x720_59_4000K.mp4'
+    //url = 'https://bdata-producedclips.mlb.com/dfda3a1d-6ac0-4cee-a9f2-e67c0c3db3bf.mp4'
+
+  let blobLarge = null; // Declare and initialize outside try-catch
+
+  try {
+    const response = UrlFetchApp.fetch(videoUrl, fetchOptions);
+    Logger.log('Video fetch response code=' + response.getResponseCode());
+    if (response.getResponseCode() >= 400) {
+      Logger.log(`Error fetching video from MLB. Status: ${response.getResponseCode()}. Response: ${response.getContentText()}`);
+    } else {
+      blobLarge = response.getBlob();
+      Logger.log('Video downloaded from MLB. Size=' + blobLarge.getBytes().length + ' bytes, type=' + blobLarge.getContentType());
+    }
   } catch (error) {
-    Logger.log('createFile Video')
-    Logger.log(error);
-    var blobLarge = null
+    Logger.log('Exception during video fetch from MLB: ' + error.toString());
   }
 
-  if (blobLarge === null)
-    return null
+  if (blobLarge === null) {
+    Logger.log('Unable to download video blob, aborting video post.');
+    return [null, null, null];
+  }
 
 
   //Logger.log('downloaded blob')
@@ -339,21 +395,28 @@ function downloadAndPostVideo(gameState, isReply = true, customPostText = null) 
   //Logger.log(link)
 
 
-  if (gameState.highlightHeadline[gameState.highlightHeadline.length-1] == '.') {
+  if (gameState.highlightHeadline && gameState.highlightHeadline[gameState.highlightHeadline.length-1] == '.') {
     gameState.highlightHeadline = gameState.highlightHeadline.substring(0, gameState.highlightHeadline.length - 1)
   }
 
-  data = uploadVideoRecommended(blobLarge.getBytes())
+  Logger.log('Calling uploadVideoRecommended with video payload size=' + blobLarge.getBytes().length + ' bytes, mimeType=' + blobLarge.getContentType());
 
-  //data = {size:'1.7635081E7', ref: {'$link=bafkreihx3jr6pvt3dkxxguefpkz6udkqj3gg2i7nejwzdus2cntuphfkrm'}, mimeType='video/x-m4v', $type='blob'}
+  let uploadResult = null;
+  try {
+    uploadResult = uploadVideoRecommended(blobLarge.getBytes(), blobLarge.getContentType());
+    Logger.log('uploadVideoRecommended returned: ' + JSON.stringify(uploadResult));
+  } catch (e) {
+    Logger.log('uploadVideoRecommended threw an exception: ' + e.toString());
+    return [null, null, null];
+  }
 
-  Logger.log('data.blob')
-  Logger.log(data.blob)
+  const videoBlob = uploadResult && uploadResult.blob ? uploadResult.blob : null;
+  if (!videoBlob || !videoBlob.ref) {
+    Logger.log('No usable video blob available from recommended upload. Aborting. Result=' + JSON.stringify(uploadResult));
+    return [null, null, null];
+  }
 
-  var type = data.blob['$type']
-  var ref = data.blob.ref
-  var size = data.blob.size
-  var mimeType = data.blob.mimeType
+  Logger.log('videoBlob prepared for embed: ' + JSON.stringify(videoBlob));
   
   let messageToPost;
   if (customPostText) {
@@ -374,29 +437,33 @@ ${allTeamInfo()[gameState.mediaTeam].teamName} — ${videoText}:`
     createdAt: (new Date()).toISOString(),
     embed: {
       $type: 'app.bsky.embed.video',
-        video: {
-          '$type': type,
-          'ref': ref,
-          'size': size,
-          'mimeType': mimeType
-        },
-        aspectRatio: {
-            width: 1280,
-            height: 720
-        }
+      video: videoBlob,
+      aspectRatio: {
+        width: 1280,
+        height: 720
+      }
     }
   }
 
   let blueskyLink, uri, cid;
-  if (isReply && gameState.lastPostParentUri && gameState.lastPostParentCid) {
-    [blueskyLink, uri, cid] = post(record, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid}, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid});
-  } else {
-    [blueskyLink, uri, cid] = post(record, undefined, undefined);
+  try {
+    if (isReply && gameState.lastPostParentUri && gameState.lastPostParentCid) {
+      [blueskyLink, uri, cid] = post(record, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid}, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid});
+    } else {
+      [blueskyLink, uri, cid] = post(record, undefined, undefined);
+    }
+  } catch (e) {
+    Logger.log('Exception while posting video record: ' + e.toString());
+    return [null, null, null];
   }
 
-
+  Logger.log('downloadAndPostVideo result: blueskyLink=' + blueskyLink + ', uri=' + uri + ', cid=' + cid);
   return [blueskyLink, uri, cid]
 
+  } catch (e) {
+    Logger.log('downloadAndPostVideo exception: ' + e.toString());
+    return [null, null, null];
+  }
 }
 
 
