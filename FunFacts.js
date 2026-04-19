@@ -224,7 +224,7 @@ function mostLossesMLB(gameState) {
 
   message = `The Rockies are on pace to have ${onPaceLosses} losses in ${year}, ${lossesText} losses in modern MLB history.
 
-Here are the top 5:
+The top 7:
 121 losses (2024 White Sox)
 120 losses (1962 Mets)
 119 losses (2025 Rockies)

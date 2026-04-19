@@ -22,10 +22,6 @@ function getFeedGenerator(feedURI) {
 
 
 
-
-
-
-
 function loadData() {
   const url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
 
@@ -207,6 +203,95 @@ function uploadVideoSimple(blob) {
   Logger.log("uploadVideoSimple response=" + response)
 
   return JSON.parse(response.getContentText());
+}
+
+function uploadVideoRecommended(blob, mimeType = 'video/mp4') {
+  const loadedData = loadData();
+  const accessJwt = loadedData.accessJwt;
+  const did = loadedData.did;
+  const didDoc = loadedData.didDoc;
+
+  // Extract PDS endpoint from didDoc to dynamically form the PDS DID
+  let pdsDid = '';
+  if (didDoc && didDoc.service) {
+    const pdsService = didDoc.service.find(s => s.id === '#atproto_pds');
+    if (pdsService && pdsService.serviceEndpoint) {
+      pdsDid = pdsService.serviceEndpoint.replace('https://', 'did:web:').replace('http://', 'did:web:');
+    }
+  }
+  if (!pdsDid) throw new Error("Could not determine PDS DID from session.");
+
+  const exp = Math.floor(Date.now() / 1000) + (60 * 30); // 30 minutes
+
+  // 1. Get service auth token for the video service (upload)
+  const uploadAuthUrl = 'https://bsky.social/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=com.atproto.repo.uploadBlob&exp=' + exp;
+  const authOptions = {
+    'method': 'get',
+    'headers': {
+      'Authorization': 'Bearer ' + accessJwt
+    }
+  };
+  const uploadAuthResponse = JSON.parse(UrlFetchApp.fetch(uploadAuthUrl, authOptions).getContentText());
+  const uploadVideoToken = uploadAuthResponse.token;
+
+  // 2. Upload the video directly to the Bluesky video service
+  const uploadUrl = 'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?did=' + encodeURIComponent(did) + '&name=video.mp4';
+  const uploadOptions = {
+    'method': 'post',
+    'headers': {
+      'Authorization': 'Bearer ' + uploadVideoToken,
+      'Content-Type': mimeType
+    },
+    'payload': blob,
+    'muteHttpExceptions': true
+  };
+  
+  const uploadResponseRaw = UrlFetchApp.fetch(uploadUrl, uploadOptions);
+  const uploadResponse = JSON.parse(uploadResponseRaw.getContentText());
+  const responseCode = uploadResponseRaw.getResponseCode();
+  
+  if (responseCode !== 200 && responseCode !== 409) {
+    throw new Error("Video upload failed: " + uploadResponseRaw.getContentText());
+  }
+  
+  const jobId = uploadResponse.jobId;
+
+  Logger.log("Video uploaded to video.bsky.app. Job ID: " + jobId + (responseCode === 409 ? " (Already processed)" : ""));
+
+  // 3. Get service auth token for the video service (status polling)
+  const statusAuthUrl = 'https://bsky.social/xrpc/com.atproto.server.getServiceAuth?aud=' + encodeURIComponent(pdsDid) + '&lxm=app.bsky.video.getJobStatus&exp=' + exp;
+  const statusAuthResponse = JSON.parse(UrlFetchApp.fetch(statusAuthUrl, authOptions).getContentText());
+  const statusVideoToken = statusAuthResponse.token;
+
+  // 4. Poll for job completion
+  const statusUrl = 'https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=' + encodeURIComponent(jobId);
+  const statusOptions = {
+    'method': 'get',
+    'headers': {
+      'Authorization': 'Bearer ' + statusVideoToken
+    }
+  };
+
+  let jobState = '';
+  let retries = 0;
+  while (jobState !== 'JOB_STATE_COMPLETED' && retries < 30) {
+    Utilities.sleep(3000); // Wait 3 seconds before each poll
+    const statusResponse = JSON.parse(UrlFetchApp.fetch(statusUrl, statusOptions).getContentText());
+    const jobStatus = statusResponse.jobStatus;
+    jobState = jobStatus.state;
+
+    Logger.log("Video processing state: " + jobState + " (" + (jobStatus.progress || 0) + "%)");
+
+    if (jobState === 'JOB_STATE_FAILED') {
+      throw new Error("Video processing failed: " + jobStatus.error);
+    } else if (jobState === 'JOB_STATE_COMPLETED') {
+      Logger.log("Video processing complete.");
+      return { blob: jobStatus.blob };
+    }
+    retries++;
+  }
+
+  throw new Error("Video processing timed out.");
 }
 
 

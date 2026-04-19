@@ -222,7 +222,7 @@ function downloadAndPostVideo(gameState) {
     gameState.highlightHeadline = gameState.highlightHeadline.substring(0, gameState.highlightHeadline.length - 1)
   }
 
-  data = uploadVideoSimple(blobLarge.getBytes())
+  data = uploadVideoRecommended(blobLarge.getBytes())
 
   //data = {size:'1.7635081E7', ref: {'$link=bafkreihx3jr6pvt3dkxxguefpkz6udkqj3gg2i7nejwzdus2cntuphfkrm'}, mimeType='video/x-m4v', $type='blob'}
 

@@ -24,3 +24,16 @@ function testPostBluesky(gameState) {
 
   blueskyLink = postBluesky(postText);
 }
+
+function testUploadVideoRecommended() {
+  const url = 'https://bdata-producedclips.mlb.com/bc6ba1be-9797-4bdd-870e-278a702b15f1.mp4';
+  Logger.log('Downloading video from: ' + url);
+  
+  const response = UrlFetchApp.fetch(url);
+  const videoBytes = response.getBlob().getBytes();
+  
+  Logger.log('Uploading video to Bluesky...');
+  const result = uploadVideoRecommended(videoBytes, 'video/mp4');
+  
+  Logger.log('Upload complete. Result: ' + JSON.stringify(result));
+}

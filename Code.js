@@ -114,7 +114,7 @@ try {
 
 
   [postArray, gameState] = determinePost(gameState, previousGameState)
-  Logger.log("Post=" + postArray)
+  Logger.log("Post=" + JSON.stringify(postArray))
 
   //postArray = ['test post 1']
 
@@ -122,7 +122,10 @@ try {
   //sometimes taco's et al have legit reasons to double post
   //removed && postArray.length == 1 from post condition. why was that there?
   //it caused a bug where it posted a duplicate post when there were two posts in the queue
-  postArray.forEach((element) => gameState = checkPostMade(gameState) ? gameState : recordPost(element, gameState));
+    postArray.forEach((element) => {
+    gameState.currentPost = element.id;
+    gameState = checkPostMade(gameState) ? gameState : recordPost(element.text, gameState);
+  });
 
 
   if ((gameState.detailedState == 'Game Over' || gameState.detailedState == 'Final') && (previousGameState.detailedState == 'In Progress')) {
@@ -594,8 +597,7 @@ function determinePost(gameState, previousGameState) {
 ${getSynonym('couldBeWrongSynonym')}`
 
     gameState.currentPost = 'warmup';
-    messageArray.push(message);
-    ;
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
   if (gameState.detailedState == 'In Progress' && (previousGameState.detailedState == 'Pre-Game' || previousGameState.detailedState == 'Warmup' || previousGameState.detailedState.search('Delayed Start') != -1 )) {
@@ -605,7 +607,7 @@ ${getSynonym('couldBeWrongSynonym')}`
 Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameState.gamePk}`
 
     gameState.currentPost = 'gamestart';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
     
   }
 
@@ -629,7 +631,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
       gameState.detailedState = 'Game Over'
     }
     else {
-      messageArray.push(message);
+      messageArray.push({ text: message, id: gameState.currentPost });
     }
   }
 
@@ -643,7 +645,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
 
@@ -656,7 +658,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
 
@@ -668,7 +670,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //losing extra large
@@ -679,7 +681,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //losing massive
@@ -690,7 +692,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //losing super
@@ -702,7 +704,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //losing ultra
@@ -713,7 +715,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   } 
 
 
@@ -725,7 +727,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //winning extra large
@@ -736,8 +738,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';    
-    messageArray.push(message);
-
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //winning massive
@@ -748,7 +749,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }  
 
    //winning super
@@ -759,7 +760,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }  
 
    //winning ultra
@@ -770,7 +771,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
    //COMEBACK - CLAWING BACK
@@ -796,7 +797,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
       gameState.mediaActive = true;
       gameState.mediaTeam = setMediaTeam(gameState);
       gameState.mediaSynonym = 'wentOkSynonym';
-      messageArray.push(message);
+      messageArray.push({ text: message, id: gameState.currentPost });
   }
 
 
@@ -809,7 +810,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     gameState.mediaActive = true;
     gameState.mediaTeam = setMediaTeam(gameState);
     gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
   }  
 
  
@@ -830,7 +831,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
       gameState.currentPost = '7th';
 
-      messageArray.push(message);
+      messageArray.push({ text: message, id: gameState.currentPost });
     }
 
 
@@ -850,8 +851,9 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 ` + streak : record
 
       gameState = pullMLBStandings(gameState);
+      gameState.currentPost = 'gameend';
 
-      messageArray.push(message);
+      messageArray.push({ text: message, id: gameState.currentPost });
       
       
     }
@@ -875,7 +877,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
       gameState.mediaTeam = 'Colorado Rockies'; //setMediaTeam(gameState);    
       gameState.mediaSynonym = 'wentOkSynonym';
 
-      messageArray.push(message);
+      messageArray.push({ text: message, id: gameState.currentPost });
       
       
     }
@@ -887,8 +889,8 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     //TODO delete this after testing video
     //gameState.mediaActive = true;
-    messageArray.push(message);
-    ;
+    gameState.currentPost = 'funfact_' + Date.now();
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
 
@@ -904,7 +906,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
   message = gameState.gameDelay[0] == 'delayed' ? `The Rockies are currently on a delay due to ${gameState.gameDelay[1]}. That is no reason to ${getSynonym('delaySynonym')}.` : `The Rockies are currently on a ${gameState.gameDelay[0]} due to ${gameState.gameDelay[1]}. That is no reason to ${getSynonym('delaySynonym')}.`
 
     gameState.currentPost ='delayed start';
-    messageArray.push(message);
+    messageArray.push({ text: message, id: gameState.currentPost });
     
   }
 
@@ -918,7 +920,8 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     if (triggerID0 != undefined && triggerID0 != '') {
       setPostGameTriggers();
     }
-
+    gameState.currentPost = 'postponed';
+    messageArray.push({ text: message, id: gameState.currentPost });
   }
 
 
@@ -1077,17 +1080,3 @@ function findCurrentGameState(schedule) {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
