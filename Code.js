@@ -50,6 +50,11 @@ function main(triggerUid) {
   gameState.mediaTeam = previousGameState.mediaTeam;
   gameState.mediaSynonym = previousGameState.mediaSynonym;
 
+  gameState.queuedVideoHeadline = previousGameState.queuedVideoHeadline;
+  gameState.queuedVideoLink = previousGameState.queuedVideoLink;
+  gameState.queuedVideoDuration = previousGameState.queuedVideoDuration;
+  gameState.queuedVideoOutput = previousGameState.queuedVideoOutput;
+
   gameState.lastPostBlueskyLink = previousGameState.lastPostBlueskyLink;
   gameState.lastPostParentUri = previousGameState.lastPostParentUri;
   gameState.lastPostParentCid = previousGameState.lastPostParentCid;
