@@ -132,14 +132,35 @@ ${getSynonym('notMadJustDisappointedSynonym', test)}`
 function allTeamsReturnStat(stat, statName, sortByDirection, test) {
   stats = pullAllTeamStandings(stat, sortByDirection)
   plusSign = stat == 'runDifferential' ? '+' : ''
-  message = `MLB, ${statName}:
+  message = `MLB ${statName}:
 `
-  for (let t of stats){
-    message += `${t[stat] > 0 ? plusSign + numberWithCommas(t[stat]) : t[stat] == 0 ? ' ' + numberWithCommas(t[stat]) : numberWithCommas(t[stat])} ${teamInfo[t.team.name].abbreviation}
+  let colRank = null;
+  for (let [index, t] of stats.entries()){
+    const abbr = teamInfo[t.team.name].abbreviation;
+    if (abbr === 'COL') {
+      colRank = index + 1;
+    }
+    message += `${t[stat] > 0 ? plusSign + numberWithCommas(t[stat]) : t[stat] == 0 ? ' ' + numberWithCommas(t[stat]) : numberWithCommas(t[stat])} ${abbr}
 `}
 
-  message += `
-${getSynonym('inARoughSpotSynonym', test)}`
+  Logger.log(`COL rank for ${statName}: ${colRank} out of ${stats.length}`)
+
+  const third = Math.ceil(stats.length / 3);
+  let synonymKey = 'inARoughSpotSynonym';
+  if (colRank <= third) synonymKey = 'inAGoodSpotSynonym';
+  else if (colRank <= third * 2) synonymKey = 'inAMiddleSpotSynonym';
+
+  let synonym = '';
+  let fits = false;
+  for (let i = 0; i < 5; i++) {
+    synonym = getSynonym(synonymKey, test);
+    if ((message + `\n${synonym}`).length <= 300) { fits = true; break; }
+  }
+  if (!fits) {
+    const backups = ['Welp.', 'Ok then.', 'Alright.', 'Fair enough.', 'So it goes.', 'Yep.', 'Cool cool.', 'Noted.', 'Indeed.', 'Moving on.'];
+    synonym = backups[Math.floor(Math.random() * backups.length)];
+  }
+  message += `\n${synonym}`
 
   //Logger.log(message)
   return message
