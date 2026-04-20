@@ -138,14 +138,57 @@ try {
         gameState = pullMLBStandings(gameState);
   }
 
+  logCurrentPlay(gameState);
+
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("GameState");  
   sheet.getRange(2,1,1,1).setValues([[JSON.stringify(gameState)]]);
   }
   else {
     Logger.log('locked by other process')
   }
+}
 
 
+function logCurrentPlay(gameState) {
+  try {
+    let liveUrl = `https://statsapi.mlb.com/api/v1.1/game/${gameState.gamePk}/feed/live?fields=liveData,plays,currentPlay,result,type,event,eventType,description,rbi,awayScore,homeScore,isOut,about,atBatIndex,halfInning,isTopInning,inning,startTime,endTime,isComplete,isScoringPlay,hasReview,hasOut,captivatingIndex,count,balls,strikes,outs,matchup,batter,id,fullName,link,batSide,code,description,pitcher,pitchHand,splits,batter,pitcher,menOnBase,pitchIndex,actionIndex,runnerIndex,runners,movement,originBase,start,end,outBase,isOut,outNumber,details,event,eventType,runner,isScoringEvent,rbi,earned,teamUnearned,playIndex,credits,player,position,name,abbreviation,credit`;
+    let liveResponse = JSON.parse(UrlFetchApp.fetch(liveUrl));
+    let play = liveResponse.liveData.plays.currentPlay;
+    let about = play.about || {};
+    let result = play.result || {};
+    let matchup = play.matchup || {};
+    let count = play.count || {};
+    let runners = play.runners || [];
+
+    let halfInning = about.isTopInning ? 'Top' : 'Bottom';
+    let battingTeam = about.isTopInning ? gameState.awayTeam : gameState.homeTeam;
+    let pitchingTeam = about.isTopInning ? gameState.homeTeam : gameState.awayTeam;
+    Logger.log(`--- Current Play: ${halfInning} of inning ${about.inning} | At-bat #${about.atBatIndex || '?'} | ${about.isComplete ? 'Complete' : 'In progress'} ---`);
+    Logger.log(`${battingTeam || 'Away'} batting vs ${pitchingTeam || 'Home'} pitching`);
+    Logger.log(`Batter: ${matchup.batter?.fullName || 'N/A'} (${matchup.batSide?.description || '?'}) vs Pitcher: ${matchup.pitcher?.fullName || 'N/A'} (${matchup.pitchHand?.description || '?'})`);
+    Logger.log(`Count: ${count.balls}-${count.strikes}, ${count.outs} out(s)`);
+    Logger.log(`Result: ${result.type || '?'} - ${result.event || 'In progress'} - ${result.description || ''}`);
+    Logger.log(`Score: Away ${result.awayScore} - Home ${result.homeScore} | RBI: ${result.rbi || 0} | Scoring play: ${about.isScoringPlay}${about.hasReview ? ' | UNDER REVIEW' : ''}`);
+    if (about.captivatingIndex != null) Logger.log(`Captivating index: ${about.captivatingIndex}`);
+    Logger.log(`Men on base: ${JSON.stringify(play.matchup?.splits?.menOnBase || 'N/A')}`);
+
+    if (runners.length > 0) {
+      for (let r of runners) {
+        let movement = r.movement || {};
+        let details = r.details || {};
+        let earnedStr = details.earned ? ' (earned)' : details.teamUnearned ? ' (unearned)' : '';
+        let outStr = movement.isOut ? ` | OUT at ${movement.outBase || '?'} (#${movement.outNumber || '?'})` : '';
+        Logger.log(`Runner: ${details.runner?.fullName || 'N/A'} | ${movement.start || 'N/A'} → ${movement.end || 'N/A'} | Scoring: ${details.isScoringEvent || false}${earnedStr}${outStr}`);
+      }
+    }
+
+    if (play.credits && play.credits.length > 0) {
+      let creditStr = play.credits.map(c => `${c.player?.fullName || 'N/A'} (${c.credit || ''})`).join(', ');
+      Logger.log(`Credits: ${creditStr}`);
+    }
+  } catch (e) {
+    Logger.log('Failed to fetch live game data: ' + e);
+  }
 }
 
 

@@ -57,9 +57,10 @@ That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - 
     allTeamsRunsAllowed(test),
     gameState.myTeamHomeStatus == 'home' ? `The Rockies' record is ${teamRecord[6]} when playing at Coors Field in Colorado.` :
     `The Rockies' record is ${teamRecord[7]} when playing at opposing ballparks.`,
+    allTeamsRunsScored(test),
     `Add our Colorado Rockies feed on Bluesky to ${getSynonym('followRockiesFeed', test)}: https://bsky.app/profile/did:plc:dkanfr5ivoi3hat7pz6fjiat/feed/coloradorox`,
     `The Rockies are ${gameState.standings.divisionGamesBack} games back in the ${gameState.standings.myTeamDivision} division.`,
-    allTeamsRunsScored(test)
+    nlStandingsFunFact(test)
   ]
 
   //.toFixed(1).replace(/[.,]0$/, "")
@@ -86,7 +87,7 @@ That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - 
   }
 
   //if on pace losses less than 115, use next fun fact)
-  if ( nextPostToUse == 3 &&  mostLossesMLB(gameState) == '') {
+  if ( nextPostToUse == 3 &&  (mostLossesMLB(gameState) == '' || mostLossesMLB(gameState) == undefined)) {
     nextPostToUse = nextPostToUse + 1;
   }  
 
@@ -145,10 +146,18 @@ function allTeamsReturnStat(stat, statName, sortByDirection, test) {
 
   Logger.log(`COL rank for ${statName}: ${colRank} out of ${stats.length}`)
 
-  const third = Math.ceil(stats.length / 3);
+  message += `\n${getRankedSynonym(colRank, stats.length, message, test)}`
+
+  //Logger.log(message)
+  return message
+}
+
+
+function getRankedSynonym(rank, total, message, test) {
+  const third = Math.ceil(total / 3);
   let synonymKey = 'inARoughSpotSynonym';
-  if (colRank <= third) synonymKey = 'inAGoodSpotSynonym';
-  else if (colRank <= third * 2) synonymKey = 'inAMiddleSpotSynonym';
+  if (rank <= third) synonymKey = 'inAGoodSpotSynonym';
+  else if (rank <= third * 2) synonymKey = 'inAMiddleSpotSynonym';
 
   let synonym = '';
   let fits = false;
@@ -160,10 +169,7 @@ function allTeamsReturnStat(stat, statName, sortByDirection, test) {
     const backups = ['Welp.', 'Ok then.', 'Alright.', 'Fair enough.', 'So it goes.', 'Yep.', 'Cool cool.', 'Noted.', 'Indeed.', 'Moving on.'];
     synonym = backups[Math.floor(Math.random() * backups.length)];
   }
-  message += `\n${synonym}`
-
-  //Logger.log(message)
-  return message
+  return synonym;
 }
 
 
@@ -179,6 +185,58 @@ function allTeamsRunsScored(test) {
   return allTeamsReturnStat('runsScored', 'runs scored', 'desc', test)
 }
 
+
+function nlStandingsFunFact(test) {
+  var _ = LodashGS.load();
+  let dateTime = new Date();
+  let timezone = Session.getScriptTimeZone();
+  let year = Utilities.formatDate(dateTime, timezone, "yyyy")
+  url = 'https://statsapi.mlb.com/api/v1/standings?leagueId=104,103&season=' + year + '&standingsTypes=regularSeason&hydrate=hydrations,team,record(division)'
+  let response = JSON.parse(UrlFetchApp.fetch(url))
+  teamInfo = allTeamInfo()
+
+  const nlDivisionNames = {203: 'NL West', 204: 'NL East', 205: 'NL Central'}
+  let divisionLeaders = []
+  let otherNLTeams = []
+
+  for (let division of response.records) {
+    if (division.league.id !== 104) continue;
+    for (let t of division.teamRecords) {
+      const abbr = teamInfo[t.team.name].abbreviation;
+      const entry = {abbr: abbr, wins: t.wins, losses: t.losses, winPct: parseFloat(t.winningPercentage), divisionName: nlDivisionNames[division.division.id]}
+      if (t.divisionRank === '1') {
+        divisionLeaders.push(entry)
+      } else {
+        otherNLTeams.push(entry)
+      }
+    }
+  }
+
+  divisionLeaders = _.orderBy(divisionLeaders, 'winPct', 'desc')
+  otherNLTeams = _.orderBy(otherNLTeams, 'winPct', 'desc')
+
+  let wildCard = otherNLTeams.slice(0, 3)
+  let rest = otherNLTeams.slice(3)
+
+  let allNLTeams = [...divisionLeaders, ...otherNLTeams]
+  let colEntry = allNLTeams.find(t => t.abbr === 'COL')
+  let colRank = allNLTeams.sort((a, b) => b.winPct - a.winPct).indexOf(colEntry) + 1
+
+  message = getRankedSynonym(colRank, allNLTeams.length, '', test) + `\n\nNL Division Leaders\n`
+  for (let t of divisionLeaders) {
+    message += `${t.abbr}: ${t.wins}-${t.losses}\n`
+  }
+  message += `\nWild Card\n`
+  for (let t of wildCard) {
+    message += `${t.abbr}: ${t.wins}-${t.losses}\n`
+  }
+  message += `\n`
+  for (let t of rest) {
+    message += `${t.abbr}: ${t.wins}-${t.losses}\n`
+  }
+
+  return message.trim()
+}
 
 
 function winsLossesUntilRecord(gameState) {
