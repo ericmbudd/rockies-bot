@@ -390,6 +390,9 @@ function uploadVideoRecommended(blob, mimeType = 'video/mp4') {
   }
 
   if (responseCode !== 200 && responseCode !== 409) {
+    if (uploadResponse.error && uploadResponse.error.toLowerCase().indexOf('not supported') !== -1) {
+      Logger.log('Video format rejected by Bluesky. Detected format: ' + uploadResponse.error + '. Submitted mimeType: ' + mimeType);
+    }
     throw new Error('Video upload failed: ' + uploadResponseText);
   }
 
