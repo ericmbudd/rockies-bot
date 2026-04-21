@@ -50,7 +50,7 @@ function postDefensivePlayVideo(gameState) {
   var [hour, min, sec] = gameState.highlightDuration.split(":")
   var isShortVideo = (min == '00');
 
-  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'k', "k's", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
+  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', " k's ", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
   let defensivePlay = false;
   let searchContent = (gameState.highlightHeadline + " " + (gameState.highlightDescription || "")).toLowerCase();
   
@@ -64,6 +64,10 @@ function postDefensivePlayVideo(gameState) {
 
   if (isShortVideo && defensivePlay) {
     let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
+    if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
+      Logger.log('   - Defensive play skipped: detailedState is ' + gameState.detailedState);
+      return false;
+    }
     if (tempMediaTeam === 'Colorado Rockies') {
       Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
       let tempMediaSynonym = 'wentOkSynonym';
@@ -132,6 +136,12 @@ function postGameVideo(gameState) {
   Logger.log("Duration: " + gameState.highlightDuration + " | Link: " + gameState.highlightLink);
   Logger.log("Queued video link: " + gameState.queuedVideoLink);
 
+  // Reset mediaVideoPosted when mediaActive first turns on for a new cycle
+  if (gameState.mediaActive && !previousGameState.mediaActive) {
+    gameState.mediaVideoPosted = false;
+    Logger.log("=> New mediaActive cycle started. mediaVideoPosted reset to false.");
+  }
+
   if (gameState.highlightHeadline != previousGameState.highlightHeadline) {
     //writeMediaLog(gameState.highlightDuration, gameState.highlightOutput)
     Logger.log("=> NEW HIGHLIGHT DETECTED.");
@@ -173,8 +183,8 @@ function postGameVideo(gameState) {
     var isShortVideo = (min == '00');
     var isFinal = (gameState.detailedState == 'Final' || gameState.detailedState == 'Game Over');
 
-    // Priority 1: Scoring or Final plays are always queued.
-    if (isShortVideo && (scoringPlay || isFinal)) { // This is for scoring plays
+    // Priority 1: Scoring or Final plays are queued, but only if no video reply has been posted yet for this mediaActive cycle.
+    if (isShortVideo && (scoringPlay || isFinal) && !gameState.mediaVideoPosted) { // This is for scoring plays
       Logger.log("   - Video qualifies! Queueing it up for posting.");
       gameState.queuedVideoHeadline = gameState.highlightHeadline;
       gameState.queuedVideoLink = gameState.highlightLink;
@@ -189,7 +199,9 @@ function postGameVideo(gameState) {
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
-      if (!gameState.queuedVideoLink) { // Check if a scoring video is NOT already queued
+      if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
+        Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
+      } else if (!gameState.queuedVideoLink) { // Check if a scoring video is NOT already queued
         
         // Temporarily determine mediaTeam/Synonym for this defensive post
         let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
@@ -207,13 +219,13 @@ function postGameVideo(gameState) {
 ${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
 
           // Download and post the video as a standalone (isReply = false)
-          let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
+          let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
 
           // Record the post in the "Posts" sheet
           var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
           var postCount = Number(sheet.getRange(1,8,1,1).getValues());
           var dateTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-          sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.highlightOutput, gameState.highlightOutput , blueskyLink]]);
+          sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, gameState.highlightOutput, blueskyLink]]);
           sheet.getRange(1,8,1,1).setValue([Number(postCount + 1)]);
           
           Logger.log("   - Defensive play posted. Not affecting main media queue.");
@@ -257,7 +269,8 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
       gameState.highlightOutput = gameState.queuedVideoOutput;
       gameState.highlightDescription = gameState.queuedVideoDescription;
 
-      let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, true); // isReply defaults to true
+      let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, true); // isReply defaults to true
+      let queuedVideoOutput = gameState.queuedVideoOutput; // capture before clearing
       
       // Restore original highlight info after posting queued video
       gameState.highlightLink = originalLink;
@@ -266,6 +279,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
       gameState.highlightDescription = originalDescription;
 
       gameState.mediaActive = false; // Reset mediaActive after posting the queued video
+      gameState.mediaVideoPosted = true; // Block any further video replies for this cycle
       // Clear all queued video properties
       gameState.queuedVideoLink = null;
       gameState.queuedVideoHeadline = null;
@@ -274,7 +288,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
       gameState.queuedVideoDescription = null;
 
       Logger.log("Outputting to Posts sheet")
-      sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, gameState.queuedVideoOutput, gameState.queuedVideoOutput , blueskyLink]]);
+      sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, queuedVideoOutput, blueskyLink]]);
       sheet.getRange(1,8,1,1).setValue(  [Number(postCount + 1)] );
     } else {
       Logger.log('=> SKIPPED POSTING: Waiting for mediaReplyThreshold to be met for queued scoring video.');
@@ -450,6 +464,7 @@ ${allTeamInfo()[gameState.mediaTeam].teamName} — ${videoText}:`
     if (isReply && gameState.lastPostParentUri && gameState.lastPostParentCid) {
       [blueskyLink, uri, cid] = post(record, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid}, {uri: gameState.lastPostParentUri, cid: gameState.lastPostParentCid});
     } else {
+      delete record.reply; // ensure no reply thread is attached for standalone posts
       [blueskyLink, uri, cid] = post(record, undefined, undefined);
     }
   } catch (e) {
@@ -458,7 +473,7 @@ ${allTeamInfo()[gameState.mediaTeam].teamName} — ${videoText}:`
   }
 
   Logger.log('downloadAndPostVideo result: blueskyLink=' + blueskyLink + ', uri=' + uri + ', cid=' + cid);
-  return [blueskyLink, uri, cid]
+  return [blueskyLink, uri, cid, messageToPost]
 
   } catch (e) {
     Logger.log('downloadAndPostVideo exception: ' + e.toString());

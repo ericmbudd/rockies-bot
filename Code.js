@@ -49,6 +49,7 @@ function main(triggerUid) {
   gameState.mediaActive = previousGameState.mediaActive;
   gameState.mediaTeam = previousGameState.mediaTeam;
   gameState.mediaSynonym = previousGameState.mediaSynonym;
+  gameState.mediaVideoPosted = previousGameState.mediaVideoPosted;
 
   gameState.queuedVideoHeadline = previousGameState.queuedVideoHeadline;
   gameState.queuedVideoLink = previousGameState.queuedVideoLink;
@@ -467,7 +468,7 @@ function mediaReplyThreshold(replyByTime, minuteThreshold) {
   currentDateTime = new Date();
 
   //set to 6 when live
-  minuteThreshold = 8
+  minuteThreshold = 4
 
   replyByTime = new Date( Date.parse(replyByTime) );
   //Logger.log(currentDateTime)

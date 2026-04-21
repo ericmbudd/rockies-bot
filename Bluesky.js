@@ -614,7 +614,7 @@ function post(record, root, parent) {
 
     postIdentifier = uri.substring(uri.lastIndexOf('/') + 1);
 
-    blueskyLink = 'https://bsky.app/profile/didtherockieslose.bsky.social/post/' + postIdentifier;
+    blueskyLink = 'https://bsky.app/profile/didtherockieslose.com/post/' + postIdentifier;
     Logger.log("Bluesky post URL: " + blueskyLink);
     return [blueskyLink, uri, cid];
   } catch (error) {

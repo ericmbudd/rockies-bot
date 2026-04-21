@@ -1,4 +1,4 @@
-
+﻿
 function postFunFact(gameState, test) {
   gameState = gameState ?? loadPreviousGameState()
   //test ? gameState = testFunFactData() : gameState;
@@ -22,22 +22,28 @@ function postFunFact(gameState, test) {
   //Logger.log('teamRecord=' + teamRecord)
 
 
-  funFactArray = [
-    sellTheTeamAlert(test),
-    gameState.standings.streakType == 'losses' ? `The Rockies' current losing streak is at ${gameState.standings.streakNumber == 1 ? gameState.standings.streakNumber + ' game' : gameState.standings.streakNumber + ' games'}.` : `The Rockies' current NOT losing streak is at ${gameState.standings.streakNumber == 1 ? gameState.standings.streakNumber + ' game' : gameState.standings.streakNumber + ' games'}. ${gameState.standings.streakNumber > 2 ? getSynonym('inShockWinningSynonym', test) : getSynonym('getSurprisedSynonym', test)}`,
-    `The Rockies' current series losing streak is at ${Number(teamRecord[9])} consecutive series during this season.`,
-    mostLossesMLB(gameState),
-    `The Rockies ${gameState.gamesSinceTacos == 1 ? 'last got taco’s just one game ago' : 'haven’t gotten taco’s in ' + gameState.gamesSinceTacos + ' games' }.`,
-    `Follow the Did The Rockies Lose Starter Pack to get plugged into Rockies baseball on Bluesky: https://go.bsky.app/PoLxduX`,
-    sellTheTeamAlert(test),
-    `Fun Fact: Heading into the current game, the Rockies have scored ${numberWithCommas(Number(teamRecord[1]))} runs while opposing teams have scored ${numberWithCommas(Number(teamRecord[2]))} runs.
+  let mostLossesResult = mostLossesMLB(gameState);
+  let mostRunDiffResult = mostRunDifferentialMLB(gameState);
 
-That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - winsPythagorean}, which is${winsPythDifference == 0 ? '' : ' ' + Math.abs(winsPythDifference)} ${comparisonText} ${Math.abs(winsPythDifference) == 1 ? 'loss' : 'losses'} compared to their actual record.`,
-    winningPercentageFunFact(gameState, test),
-    `Fun Fact: The Rockies' record is ${teamRecord[5]} in the last 10 games.`,
-    `The Rockies' record against ${gameState.standings.opposingStarterHand}-handed starting pitchers (like today) is ${gameState.standings.myTeamSplitRecords[gameState.standings.opposingStarterHand].wins}-${gameState.standings.myTeamSplitRecords[gameState.standings.opposingStarterHand].losses}.`,
-    `Visit our profile on Bluesky to sign up for post notifications from Did The Rockies Lose to ${getSynonym('getGameUpdatesSynonym', test)}`,
-    gameState.standings.eliminationNumber === '-' 
+  funFactArray = [
+    { text: sellTheTeamAlert(test), skip: true },
+    { text: gameState.standings.streakType == 'losses' ? `The Rockies' current losing streak is at ${gameState.standings.streakNumber == 1 ? gameState.standings.streakNumber + ' game' : gameState.standings.streakNumber + ' games'}.` : `The Rockies' current NOT losing streak is at ${gameState.standings.streakNumber == 1 ? gameState.standings.streakNumber + ' game' : gameState.standings.streakNumber + ' games'}. ${gameState.standings.streakNumber > 2 ? getSynonym('inShockWinningSynonym', test) : getSynonym('getSurprisedSynonym', test)}`,
+      skip: gameState.standings.streakNumber < 2 },
+    { text: `The Rockies' current series losing streak is at ${Number(teamRecord[9])} consecutive series during this season.`,
+      skip: Number(teamRecord[9]) < 2 },
+    { text: mostLossesResult, skip: !mostLossesResult },
+    { text: `The Rockies ${gameState.gamesSinceTacos == 1 ? 'last got taco\u2019s just one game ago' : 'haven\u2019t gotten taco\u2019s for ' + gameState.gamesSinceTacos + ' games' }.`,
+      skip: gameState[gameState.myTeamHomeStatus + 'Score'] > 6 || gameState.gamesSinceTacos != 0 },
+    { text: `Follow the Did The Rockies Lose Starter Pack to get plugged into Rockies baseball on Bluesky: https://go.bsky.app/PoLxduX` },
+    { text: sellTheTeamAlert(test), skip: true },
+    { text: `Fun Fact: Heading into the current game, the Rockies have scored ${numberWithCommas(Number(teamRecord[1]))} runs while opposing teams have scored ${numberWithCommas(Number(teamRecord[2]))} runs.
+
+That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - winsPythagorean}, which is${winsPythDifference == 0 ? '' : ' ' + Math.abs(winsPythDifference)} ${comparisonText} ${Math.abs(winsPythDifference) == 1 ? 'loss' : 'losses'} compared to their actual record.` },
+    { text: winningPercentageFunFact(gameState, test) },
+    { text: `Fun Fact: The Rockies' record is ${teamRecord[5]} in the last 10 games.` },
+    { text: `The Rockies' record against ${gameState.standings.opposingStarterHand}-handed starting pitchers (like today) is ${gameState.standings.myTeamSplitRecords[gameState.standings.opposingStarterHand].wins}-${gameState.standings.myTeamSplitRecords[gameState.standings.opposingStarterHand].losses}.` },
+    { text: `Visit our profile on Bluesky to sign up for post notifications from Did The Rockies Lose to ${getSynonym('getGameUpdatesSynonym', test)}` },
+    { text: gameState.standings.eliminationNumber === '-' 
       ? `The Rockies are still technically in the hunt for a playoff spot and will have to wait to ${getSynonym('workOnTheirGolfSwingSynonym', test)} until later in the season.`
       : gameState.standings.eliminationNumber > 0 
         ? `The Rockies' elimination number is ${gameState.standings.eliminationNumber}.
@@ -45,22 +51,22 @@ That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - 
     (the number means how many opposing wins / Rockies losses until they are eliminated from the playoffs) and they can ${getSynonym('workOnTheirGolfSwingSynonym', test)} in the offseason.` 
         : `The Rockies have been eliminated from the playoffs.
 
-    They are ready to ${getSynonym('workOnTheirGolfSwingSynonym', test)} in the offseason.`,
-    mostRunDifferentialMLB(gameState),
+    They are ready to ${getSynonym('workOnTheirGolfSwingSynonym', test)} in the offseason.` },
+    { text: mostRunDiffResult, skip: !mostRunDiffResult },
     //winsLossesUntilRecord(gameState),
-    nextSeriesFunFact(test),
-    `The Rockies are on pace to finish the season with ${onPaceWins} wins and ${162 - onPaceWins} losses.`,
-    allTeamsRunDifferential(test),
-    `In all of the series that The Rockies have played this season, their record is ${seriesRecord[0]} ${seriesRecord[0] == 1 ? 'win' : 'wins'}, ${seriesRecord[1]} ${seriesRecord[1] == 1 ? 'loss' : 'losses'}, and ${seriesRecord[2]} ${seriesRecord[2] == 1 ? 'tie' : 'ties'}.`,
-    `I realize it's ${getSynonym('oldNewsSynonym', test)} but the Colorado Rockies are ranked ${gameState.standings.myTeamSportRank}th out of 30 teams.`,
-    `The Rockies are playing against the ${gameState[gameState.opponentHomeStatus + 'Team']} ${gameState.dayNight == 'day' ? 'today' : 'tonight'} and their record against all ${gameState.standings.opposingLeague == 'American League' ? gameState.standings.opposingLeague + ' teams is': gameState.standings.opposingDivision + ' teams is'} ${gameState.standings.opposingDLWins}-${gameState.standings.opposingDLLosses}.`,
-    allTeamsRunsAllowed(test),
-    gameState.myTeamHomeStatus == 'home' ? `The Rockies' record is ${teamRecord[6]} when playing at Coors Field in Colorado.` :
-    `The Rockies' record is ${teamRecord[7]} when playing at opposing ballparks.`,
-    allTeamsRunsScored(test),
-    `Add our Colorado Rockies feed on Bluesky to ${getSynonym('followRockiesFeed', test)}: https://bsky.app/profile/did:plc:dkanfr5ivoi3hat7pz6fjiat/feed/coloradorox`,
-    `The Rockies are ${gameState.standings.divisionGamesBack} games back in the ${gameState.standings.myTeamDivision} division.`,
-    nlStandingsFunFact(test)
+    { text: nextSeriesFunFact(test) },
+    { text: `The Rockies are on pace to finish the season with ${onPaceWins} wins and ${162 - onPaceWins} losses.` },
+    { text: allTeamsRunDifferential(test) },
+    { text: `In all of the series that The Rockies have played this season, their record is ${seriesRecord[0]} ${seriesRecord[0] == 1 ? 'win' : 'wins'}, ${seriesRecord[1]} ${seriesRecord[1] == 1 ? 'loss' : 'losses'}, and ${seriesRecord[2]} ${seriesRecord[2] == 1 ? 'tie' : 'ties'}.` },
+    { text: `I realize it's ${getSynonym('oldNewsSynonym', test)} but the Colorado Rockies are ranked ${gameState.standings.myTeamSportRank}th out of 30 teams.` },
+    { text: `The Rockies are playing against the ${gameState[gameState.opponentHomeStatus + 'Team']} ${gameState.dayNight == 'day' ? 'today' : 'tonight'} and their record against all ${gameState.standings.opposingLeague == 'American League' ? gameState.standings.opposingLeague + ' teams is': gameState.standings.opposingDivision + ' teams is'} ${gameState.standings.opposingDLWins}-${gameState.standings.opposingDLLosses}.` },
+    { text: allTeamsRunsAllowed(test) },
+    { text: gameState.myTeamHomeStatus == 'home' ? `The Rockies' record is ${teamRecord[6]} when playing at Coors Field in Colorado.` :
+    `The Rockies' record is ${teamRecord[7]} when playing at opposing ballparks.` },
+    { text: allTeamsRunsScored(test) },
+    { text: `Add our Colorado Rockies feed on Bluesky to ${getSynonym('followRockiesFeed', test)}: https://bsky.app/profile/did:plc:dkanfr5ivoi3hat7pz6fjiat/feed/coloradorox` },
+    { text: `The Rockies are ${gameState.standings.divisionGamesBack} games back in the ${gameState.standings.myTeamDivision} division.` },
+    { text: nlStandingsFunFact(test) }
   ]
 
   //.toFixed(1).replace(/[.,]0$/, "")
@@ -70,41 +76,18 @@ That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - 
   Logger.log(`There are a total of ${funFactArray.length} fun facts in the array.`)
   Logger.log(`Using Fun Fact index ${nextPostToUse}.`)
 
-
-  //just skip the sell the team posts since Rockies have made substantial changes
-  if (nextPostToUse == 0 || nextPostToUse == 5) {
-    nextPostToUse = nextPostToUse + 1;
+  // skip forward past any posts marked to skip
+  let attempts = 0;
+  while (funFactArray[nextPostToUse].skip && attempts < funFactArray.length) {
+    nextPostToUse = (nextPostToUse + 1) % funFactArray.length;
+    attempts++;
   }
 
-  //if losing streak less than two, use next fun fact
-  if ( nextPostToUse == 1 && gameState.standings.streakNumber < 2) {
-    nextPostToUse = nextPostToUse + 1;
-  }
-
-  //if series losing streak less than two, use next fun fact
-  if ( nextPostToUse == 2 && Number(teamRecord[9]) < 2) {
-    nextPostToUse = nextPostToUse + 1;
-  }
-
-  //if on pace losses less than 115, use next fun fact)
-  if ( nextPostToUse == 3 &&  (mostLossesMLB(gameState) == '' || mostLossesMLB(gameState) == undefined)) {
-    nextPostToUse = nextPostToUse + 1;
-  }  
-
-  //taco's
-  if (nextPostToUse == 4 && (gameState[gameState.myTeamHomeStatus + 'Score'] > 6 || gameState.gamesSinceTacos != 0)) {
-    nextPostToUse = nextPostToUse + 1;
-  }
-
-
-
-  //!test && Logger.log('nextPostToUse=' + nextPostToUse)
-
-  !test && Logger.log(funFactArray[nextPostToUse])
+  !test && Logger.log(funFactArray[nextPostToUse].text)
 
   !test && sheet.getRange(2,4,1,1).setValue(nextPostToUse)
 
-  return test ? funFactArray : funFactArray[nextPostToUse];
+  return test ? funFactArray.map(f => f.text) : funFactArray[nextPostToUse].text;
 }
 
 function winningPercentageFunFact(gameState, test){
