@@ -63,25 +63,28 @@ function postDefensivePlayVideo(gameState) {
   }
 
   if (isShortVideo && defensivePlay) {
-    let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
+    if (!gameState.highlightDescription || gameState.highlightDescription.trim() === '') {
+      Logger.log('   - Defensive play skipped: description is null or empty.');
+      return false;
+    }
     if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
       Logger.log('   - Defensive play skipped: detailedState is ' + gameState.detailedState);
       return false;
     }
-    if (tempMediaTeam === 'Colorado Rockies') {
+    let keywords = gameState.highlightKeywordsAll || [];
+    let isRockiesVideo = keywords.some(k => k.type === 'team_id' && k.value === '115');
+    Logger.log('   - Rockies team keyword found in highlight: ' + isRockiesVideo);
+    if (isRockiesVideo) {
       Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
       let tempMediaSynonym = 'wentOkSynonym';
-      const videoText = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '') 
-        ? gameState.highlightDescription 
-        : gameState.highlightHeadline;
       let defensiveMessage = `${getSynonym(tempMediaSynonym)}
-${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
+Colorado Rockies — ${gameState.highlightDescription}:`;
 
       let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
       recordPostToSheet(blueskyLink, gameState.highlightOutput); // Record the post
       return true; // Indicate that a defensive post was made
     } else {
-      Logger.log("   - Defensive video qualifies, but was not by the Rockies. Skipping post.");
+      Logger.log("   - Defensive video skipped: no Rockies team_id keyword found in highlight.");
     }
   }
   return false; // No defensive post was made
@@ -95,6 +98,7 @@ function processGameHighlights(gameState) {
   gameState.highlightDuration = highlights[highlights.length - 1].duration
   gameState.highlightLink = highlights[highlights.length - 1].link
   gameState.highlightDescription = highlights[highlights.length - 1].description || '';
+  gameState.highlightKeywordsAll = highlights[highlights.length - 1].keywordsAll || [];
   gameState.highlightOutput = `=HYPERLINK("${gameState.highlightLink}","${gameState.highlightHeadline}")`
   gameState.freeGame = freeGame;
 
@@ -199,24 +203,24 @@ function postGameVideo(gameState) {
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
-      if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
+      if (!gameState.highlightDescription || gameState.highlightDescription.trim() === '') {
+        Logger.log('   - Defensive video skipped: description is null or empty.');
+      } else if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
         Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
       } else if (!gameState.queuedVideoLink) { // Check if a scoring video is NOT already queued
         
-        // Temporarily determine mediaTeam/Synonym for this defensive post
-        let tempMediaTeam = (gameState.inningState == 'Top' || gameState.inningState == 'Middle') ? gameState.homeTeam : gameState.awayTeam;
+        // Check keywordsAll for Rockies team_id (115) instead of using inning state
+        let keywords = gameState.highlightKeywordsAll || [];
+        let isRockiesVideo = keywords.some(k => k.type === 'team_id' && k.value === '115');
+        Logger.log('   - Rockies team keyword found in highlight: ' + isRockiesVideo);
 
-        if (tempMediaTeam === 'Colorado Rockies') {
+        if (isRockiesVideo) {
           Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
-          let tempMediaSynonym = 'wentOkSynonym'; // Or a new defensive synonym list
+          let tempMediaSynonym = 'weKeptItTogetherSynonym';
           
-          // Construct the message for the defensive play
-          const videoText = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '') 
-            ? gameState.highlightDescription 
-            : gameState.highlightHeadline;
           let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
-${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
+Colorado Rockies — ${gameState.highlightDescription}:`;
 
           // Download and post the video as a standalone (isReply = false)
           let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
@@ -230,7 +234,7 @@ ${allTeamInfo()[tempMediaTeam].teamName} — ${videoText}:`;
           
           Logger.log("   - Defensive play posted. Not affecting main media queue.");
         } else {
-          Logger.log("   - Defensive video qualifies, but was not by the Rockies. Skipping post.");
+          Logger.log("   - Defensive video skipped: no Rockies team_id keyword found in highlight.");
         }
       } else {
         Logger.log("   - Defensive video qualifies, but a scoring play is already queued. Skipping immediate defensive post.");
