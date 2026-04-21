@@ -84,7 +84,7 @@ function testPostGamedayLink() {
 
 // Renamed testUploadVideoRecommended to testUploadVideoSimple for consistency with the request
 function testUploadVideoRecommended() {
-  const sampleVideoUrl = 'https://bdata-producedclips.mlb.com/5074eaba-74fe-477d-8a5e-4768527f1b17.mp4';
+  const sampleVideoUrl = 'https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-04/20/c7272ed6-bd39d0be-b19c9fc4-csvm-diamondgcp-asset_1280x720_59_4000K.mp4';
   Logger.log('Attempting to download video from: ' + sampleVideoUrl);
 
   const fetchOptions = {
@@ -99,7 +99,13 @@ function testUploadVideoRecommended() {
       Logger.log(`Error fetching video. Status: ${response.getResponseCode()}. Response: ${response.getContentText()}`);
     } else {
       videoBlob = response.getBlob();
-      Logger.log('Video downloaded successfully. Size: ' + videoBlob.getBytes().length + ' bytes');
+      Logger.log('Video downloaded successfully. Size: ' + videoBlob.getBytes().length + ' bytes, type: ' + videoBlob.getContentType());
+      // Normalize unsupported MIME types to video/mp4 (same logic as downloadAndPostVideo)
+      const supportedMimeTypes = ['video/mp4', 'video/mpeg', 'video/webm', 'video/quicktime', 'image/gif'];
+      if (!supportedMimeTypes.includes(videoBlob.getContentType())) {
+        Logger.log('Unsupported MIME type: ' + videoBlob.getContentType() + '. Normalizing to video/mp4.');
+        videoBlob.setContentType('video/mp4');
+      }
     }
   } catch (e) {
     Logger.log('Exception during video download: ' + e.toString());
@@ -122,7 +128,7 @@ function testUploadVideoRecommended() {
     Logger.log('uploadResult.blob.mimeType: ' + uploadResult.blob.mimeType);
     Logger.log('uploadResult.blob.size: ' + uploadResult.blob.size);
     
-    const postText = "Brenton Doyle scores on Mickey Moniak's forceout as the Rockies' extend their lead to 9-4 in the bottom of the 8th inning";
+    const postText = "Willi Castro's nifty diving stop — Rockies defensive play test";
     
     const videoEmbedObject = uploadResult.blob;
     if (videoEmbedObject && !videoEmbedObject.$type) {

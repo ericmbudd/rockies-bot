@@ -50,7 +50,7 @@ function postDefensivePlayVideo(gameState) {
   var [hour, min, sec] = gameState.highlightDuration.split(":")
   var isShortVideo = (min == '00');
 
-  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', " k's ", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
+  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
   let defensivePlay = false;
   let searchContent = (gameState.highlightHeadline + " " + (gameState.highlightDescription || "")).toLowerCase();
   
@@ -77,8 +77,9 @@ function postDefensivePlayVideo(gameState) {
     if (isRockiesVideo) {
       Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
       let tempMediaSynonym = 'wentOkSynonym';
+      let highlightTeamName = (keywords.find(k => k.type === 'team') || {}).displayName || 'Colorado Rockies';
       let defensiveMessage = `${getSynonym(tempMediaSynonym)}
-Colorado Rockies — ${gameState.highlightDescription}:`;
+${highlightTeamName} — ${gameState.highlightDescription}`;
 
       let [blueskyLink, uri, cid] = downloadAndPostVideo(gameState, false, defensiveMessage);
       recordPostToSheet(blueskyLink, gameState.highlightOutput); // Record the post
@@ -173,7 +174,7 @@ function postGameVideo(gameState) {
       }
     }
 
-    let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'k', "k's", 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
+    let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'throw', 'throws out', 'turns two'];
     let defensivePlay = false;
     
     for (let i = 0; i < defensivePlayTerms.length; i++) {
@@ -197,9 +198,16 @@ function postGameVideo(gameState) {
       gameState.queuedVideoDescription = gameState.highlightDescription;
       // Activate media flag for the main posting loop
       gameState.mediaActive = true;
-      // Set mediaTeam for the queued scoring play; mediaSynonym is preserved from determinePost
+      // Set mediaTeam for the queued scoring play
       gameState.mediaTeam = setMediaTeam(gameState);
-      Logger.log("   - Using mediaSynonym from determinePost: " + gameState.mediaSynonym);
+      // Use mediaSynonym from determinePost if set; otherwise fall back based on which team scored
+      if (!gameState.mediaSynonym) {
+        gameState.mediaSynonym = (gameState.mediaTeam === 'Colorado Rockies') ? 'wentOkSynonym' : 'didntGoGreatSynonym';
+        Logger.log("   - mediaSynonym not set by determinePost, using fallback: " + gameState.mediaSynonym);
+      } else {
+        Logger.log("   - Using mediaSynonym from determinePost: " + gameState.mediaSynonym);
+      }
+      Logger.log("   - Scoring team: " + gameState.mediaTeam);
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
@@ -217,10 +225,11 @@ function postGameVideo(gameState) {
         if (isRockiesVideo) {
           Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
           let tempMediaSynonym = 'weKeptItTogetherSynonym';
+          let highlightTeamName = (keywords.find(k => k.type === 'team') || {}).displayName || 'Colorado Rockies';
           
           let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
-Colorado Rockies — ${gameState.highlightDescription}:`;
+${highlightTeamName} — ${gameState.highlightDescription}:`;
 
           // Download and post the video as a standalone (isReply = false)
           let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
@@ -282,18 +291,24 @@ Colorado Rockies — ${gameState.highlightDescription}:`;
       gameState.highlightOutput = originalOutput;
       gameState.highlightDescription = originalDescription;
 
-      gameState.mediaActive = false; // Reset mediaActive after posting the queued video
-      gameState.mediaVideoPosted = true; // Block any further video replies for this cycle
-      // Clear all queued video properties
-      gameState.queuedVideoLink = null;
-      gameState.queuedVideoHeadline = null;
-      gameState.queuedVideoDuration = null;
-      gameState.queuedVideoOutput = null;
-      gameState.queuedVideoDescription = null;
+      if (blueskyLink) {
+        gameState.mediaActive = false; // Reset mediaActive after posting the queued video
+        gameState.mediaVideoPosted = true; // Block any further video replies for this cycle
+        // Clear all queued video properties
+        gameState.queuedVideoLink = null;
+        gameState.queuedVideoHeadline = null;
+        gameState.queuedVideoDuration = null;
+        gameState.queuedVideoOutput = null;
+        gameState.queuedVideoDescription = null;
+      } else {
+        Logger.log('=> Video post failed (no blueskyLink returned). mediaVideoPosted NOT set. Will retry next cycle.');
+      }
 
-      Logger.log("Outputting to Posts sheet")
-      sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, queuedVideoOutput, blueskyLink]]);
-      sheet.getRange(1,8,1,1).setValue(  [Number(postCount + 1)] );
+      if (blueskyLink) {
+        Logger.log("Outputting to Posts sheet")
+        sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, queuedVideoOutput, blueskyLink]]);
+        sheet.getRange(1,8,1,1).setValue(  [Number(postCount + 1)] );
+      }
     } else {
       Logger.log('=> SKIPPED POSTING: Waiting for mediaReplyThreshold to be met for queued scoring video.');
     }
@@ -384,6 +399,12 @@ function downloadAndPostVideo(gameState, isReply = true, customPostText = null) 
     } else {
       blobLarge = response.getBlob();
       Logger.log('Video downloaded from MLB. Size=' + blobLarge.getBytes().length + ' bytes, type=' + blobLarge.getContentType());
+      // Normalize unsupported MIME types to video/mp4 — m4v is the same container and Bluesky rejects the x-m4v label
+      const supportedMimeTypes = ['video/mp4', 'video/mpeg', 'video/webm', 'video/quicktime', 'image/gif'];
+      if (!supportedMimeTypes.includes(blobLarge.getContentType())) {
+        Logger.log('Unsupported MIME type detected: ' + blobLarge.getContentType() + '. Normalizing to video/mp4.');
+        blobLarge.setContentType('video/mp4');
+      }
     }
   } catch (error) {
     Logger.log('Exception during video fetch from MLB: ' + error.toString());

@@ -47,6 +47,7 @@ function main(triggerUid) {
   */
 
   gameState.mediaActive = previousGameState.mediaActive;
+  gameState.mediaActivatedTime = previousGameState.mediaActivatedTime;
   gameState.mediaTeam = previousGameState.mediaTeam;
   gameState.mediaSynonym = previousGameState.mediaSynonym;
   gameState.mediaVideoPosted = previousGameState.mediaVideoPosted;
@@ -100,18 +101,28 @@ function main(triggerUid) {
   
   gameState = determineLosingStateChanges(gameState, previousGameState)
 
+let mediaActiveBeforeTry = gameState.mediaActive;
 try {
   [gameState, outputHighlights] = processGameHighlights(gameState);
   gameState = postGameVideo(gameState);
-
-
-  //if not posting media, check to make sure mediaActive still in window
-  gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(previousGameState.lastPostTime)
 } catch (error) {
   Logger.log(error);
   // Expected output: ReferenceError: nonExistentFunction is not defined
   // (Note: the exact output may be browser-dependent)
 }
+
+// If mediaActive was freshly set in the try block, record the activation time
+if (gameState.mediaActive === true && !mediaActiveBeforeTry) {
+  gameState.mediaActivatedTime = new Date().toISOString();
+  Logger.log('=> mediaActivatedTime refreshed from try block: ' + gameState.mediaActivatedTime);
+}
+
+// Check mediaActive is still within the reply window, using whichever time is more recent
+let mediaTimeRef = (previousGameState.mediaActivatedTime && previousGameState.lastPostTime &&
+  new Date(previousGameState.mediaActivatedTime) > new Date(previousGameState.lastPostTime))
+  ? previousGameState.mediaActivatedTime
+  : previousGameState.lastPostTime;
+gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRef);
 
   /*
   Logger.log(highlightHeadline)
@@ -120,7 +131,18 @@ try {
   */
 
 
-  [postArray, gameState] = determinePost(gameState, previousGameState)
+  // Use sentinel to detect if determinePost explicitly sets mediaActive (fresh event activation)
+  let mediaActiveBeforeDeterminePost = gameState.mediaActive;
+  gameState.mediaActive = undefined;
+  [postArray, gameState] = determinePost(gameState, previousGameState);
+  if (gameState.mediaActive === true) {
+    // A new event fired — refresh the timer
+    gameState.mediaActivatedTime = new Date().toISOString();
+    Logger.log('=> mediaActivatedTime refreshed by determinePost: ' + gameState.mediaActivatedTime);
+  } else {
+    // determinePost didn't fire a new event — restore previous state
+    gameState.mediaActive = mediaActiveBeforeDeterminePost;
+  }
   Logger.log("Post=" + JSON.stringify(postArray))
 
   //postArray = ['test post 1']
@@ -468,7 +490,7 @@ function mediaReplyThreshold(replyByTime, minuteThreshold) {
   currentDateTime = new Date();
 
   //set to 6 when live
-  minuteThreshold = 4
+  minuteThreshold = 5;
 
   replyByTime = new Date( Date.parse(replyByTime) );
   //Logger.log(currentDateTime)
