@@ -193,9 +193,9 @@ function postGameVideo(gameState) {
       gameState.queuedVideoDescription = gameState.highlightDescription;
       // Activate media flag for the main posting loop
       gameState.mediaActive = true;
-      // Set mediaTeam/Synonym for the queued scoring play
+      // Set mediaTeam for the queued scoring play; mediaSynonym is preserved from determinePost
       gameState.mediaTeam = setMediaTeam(gameState);
-      gameState.mediaSynonym = 'wentOkSynonym'; // Default for scoring plays
+      Logger.log("   - Using mediaSynonym from determinePost: " + gameState.mediaSynonym);
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
