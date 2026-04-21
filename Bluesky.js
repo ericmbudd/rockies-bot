@@ -314,6 +314,11 @@ function uploadVideoRecommended(blob, mimeType = 'video/mp4') {
     mimeType = 'video/mp4';
   }
 
+  // Patch the binary ftyp box so M4V branding is rewritten to mp42.
+  // Bluesky inspects the file's binary header, not just the MIME type label.
+  // patchFtypBox is defined in Media.js and is a no-op for non-M4V files.
+  blob = patchFtypBox(blob);
+
   const loadedData = loadData();
   const accessJwt = loadedData.accessJwt;
   const did = loadedData.did;

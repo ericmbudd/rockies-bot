@@ -84,6 +84,7 @@ function testPostGamedayLink() {
 
 // Renamed testUploadVideoRecommended to testUploadVideoSimple for consistency with the request
 function testUploadVideoRecommended() {
+  //play from https://statsapi.mlb.com/api/v1/game/824370/content
   const sampleVideoUrl = 'https://mlb-cuts-diamond.mlb.com/FORGE/2026/2026-04/20/c7272ed6-bd39d0be-b19c9fc4-csvm-diamondgcp-asset_1280x720_59_4000K.mp4';
   Logger.log('Attempting to download video from: ' + sampleVideoUrl);
 
@@ -117,7 +118,9 @@ function testUploadVideoRecommended() {
   }
   
   Logger.log('Uploading video to Bluesky using uploadVideoRecommended...');
-  const uploadResult = uploadVideoRecommended(videoBlob.getBytes(), videoBlob.getContentType());
+  // Patch ftyp box bytes before upload (handles M4V files served with .mp4 extension)
+  const patchedBytes = patchFtypBox(videoBlob.getBytes());
+  const uploadResult = uploadVideoRecommended(patchedBytes, videoBlob.getContentType());
   
   if (uploadResult && uploadResult.blob) {
     Logger.log('=== UPLOAD RESULT DEBUG ===');

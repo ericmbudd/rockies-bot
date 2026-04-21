@@ -1,4 +1,58 @@
 
+/**
+ * Patches the ftyp box in an ISOBMFF video file (MP4/M4V) to use the 'mp42' brand.
+ * M4V and MP4 share the same codecs (H.264 + AAC); only the container branding differs.
+ * Bluesky inspects the binary ftyp box, not just the MIME type header, so relabeling alone is insufficient.
+ * GAS blobs return signed bytes (-128..127); values > 127 need +256 to get the unsigned value.
+ *
+ * @param {number[]} bytes - Signed byte array from blob.getBytes()
+ * @returns {number[]} Patched byte array (mutates in place and returns)
+ */
+function patchFtypBox(bytes) {
+  if (!bytes || bytes.length < 16) return bytes;
+
+  // Read box size (big-endian unsigned 32-bit)
+  const toUnsigned = b => b < 0 ? b + 256 : b;
+  const boxSize = (toUnsigned(bytes[0]) << 24) | (toUnsigned(bytes[1]) << 16) |
+                  (toUnsigned(bytes[2]) << 8)  |  toUnsigned(bytes[3]);
+
+  // Check bytes 4-7 are 'ftyp'
+  const boxTypeName = String.fromCharCode(toUnsigned(bytes[4]), toUnsigned(bytes[5]),
+                                           toUnsigned(bytes[6]), toUnsigned(bytes[7]));
+  if (boxTypeName !== 'ftyp') {
+    Logger.log('patchFtypBox: First box is not ftyp ("' + boxTypeName + '"), skipping.');
+    return bytes;
+  }
+
+  const majorBrand = String.fromCharCode(toUnsigned(bytes[8]),  toUnsigned(bytes[9]),
+                                          toUnsigned(bytes[10]), toUnsigned(bytes[11]));
+  Logger.log('patchFtypBox: major brand = "' + majorBrand.trim() + '"');
+
+  if (!majorBrand.startsWith('M4V') && !majorBrand.startsWith('M4v')) {
+    Logger.log('patchFtypBox: Not an M4V brand, no patch needed.');
+    return bytes;
+  }
+
+  // Replace major brand with 'mp42'
+  const mp42 = [109, 112, 52, 50]; // 'mp42' in ASCII
+  Logger.log('patchFtypBox: Patching major brand "' + majorBrand.trim() + '" -> "mp42"');
+  bytes[8] = mp42[0]; bytes[9] = mp42[1]; bytes[10] = mp42[2]; bytes[11] = mp42[3];
+
+  // Replace any M4V compatible brands within the ftyp box
+  const ftypEnd = Math.min(boxSize, bytes.length - 3);
+  for (let i = 16; i < ftypEnd; i += 4) {
+    const brand = String.fromCharCode(toUnsigned(bytes[i]),   toUnsigned(bytes[i+1]),
+                                       toUnsigned(bytes[i+2]), toUnsigned(bytes[i+3]));
+    if (brand.startsWith('M4V') || brand.startsWith('M4v')) {
+      Logger.log('patchFtypBox: Replacing compatible brand "' + brand.trim() + '" -> "mp42"');
+      bytes[i] = mp42[0]; bytes[i+1] = mp42[1]; bytes[i+2] = mp42[2]; bytes[i+3] = mp42[3];
+    }
+  }
+
+  Logger.log('patchFtypBox: Patch complete.');
+  return bytes;
+}
+
 function pullGameHighlights(gameState) {
   var _ = LodashGS.load();
 
