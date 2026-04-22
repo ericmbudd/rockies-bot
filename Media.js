@@ -271,12 +271,14 @@ function postGameVideo(gameState) {
         Logger.log('   - Defensive video skipped: description is null or empty.');
       } else if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
         Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
-      } else if (!gameState.queuedVideoLink) { // Check if a scoring video is NOT already queued
-        
+      } else {
         // Check keywordsAll for Rockies team_id (115) instead of using inning state
         let keywords = gameState.highlightKeywordsAll || [];
         let isRockiesVideo = keywords.some(k => k.type === 'team_id' && k.value === '115');
         Logger.log('   - Rockies team keyword found in highlight: ' + isRockiesVideo);
+        if (gameState.queuedVideoLink) {
+          Logger.log('   - Note: a scoring play is also queued; defensive play will still post as standalone.');
+        }
 
         if (isRockiesVideo) {
           Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
@@ -301,8 +303,6 @@ ${highlightTeamName} — ${gameState.highlightDescription}:`;
         } else {
           Logger.log("   - Defensive video skipped: no Rockies team_id keyword found in highlight.");
         }
-      } else {
-        Logger.log("   - Defensive video qualifies, but a scoring play is already queued. Skipping immediate defensive post.");
       }
     } else {
       Logger.log("   - Video does NOT qualify (Short: " + isShortVideo + ", Scoring/Defensive/Final: " + (scoringPlay || defensivePlay || isFinal) + "). Ignoring.");
