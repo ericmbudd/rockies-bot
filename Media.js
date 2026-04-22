@@ -176,12 +176,13 @@ function processGameHighlights(gameState) {
 
 
   gameState.gameMediaArrayLength = highlights.length;
-  //get date and time info
-  var timezone = Session.getScriptTimeZone();
-  var dateTime = new Date();
-  dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
-  sheet.getRange(2,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+  if (highlights.length !== previousGameState.gameMediaArrayLength) {
+    Logger.log("=> New media rows detected (" + previousGameState.gameMediaArrayLength + " -> " + highlights.length + "). Updating Current Game Media sheet.");
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
+    sheet.getRange(2,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+  } else {
+    Logger.log("=> No new media rows. Skipping Current Game Media sheet update.");
+  }
 
   return [gameState, outputHighlights]
 }
