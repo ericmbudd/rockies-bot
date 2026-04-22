@@ -102,7 +102,7 @@ function pullGameHighlights(gameState) {
 // New helper function to encapsulate defensive play posting logic
 function postDefensivePlayVideo(gameState) {
   var [hour, min, sec] = gameState.highlightDuration.split(":")
-  var isShortVideo = (min == '00');
+  var isShortVideo = (min == '00') || (min == '01' && parseInt(sec, 10) <= 30);
 
   let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'called out on strikes', 'throw', 'throws out', 'turns two'];
   let defensivePlay = false;
@@ -241,7 +241,7 @@ function postGameVideo(gameState) {
       }
     }
 
-    var isShortVideo = (min == '00');
+    var isShortVideo = (min == '00') || (min == '01' && parseInt(sec, 10) <= 30);
     var isFinal = (gameState.detailedState == 'Final' || gameState.detailedState == 'Game Over');
 
     // Priority 1: Scoring or Final plays are queued, but only if no video reply has been posted yet for this mediaActive cycle.
