@@ -956,7 +956,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
   }
 
   //if no posts for a while, post a Rockies fun fact
-  if (gameState.detailedState == 'In Progress' && previousGameState.lastPostTime != '' && extraPostThreshold(previousGameState.lastPostTime, gameState.gameType == 'S' ? 300 : 24) && gameState.currentInning < 9 && messageArray.length == 0) {
+  if (gameState.detailedState == 'In Progress' && previousGameState.lastPostTime != '' && extraPostThreshold(previousGameState.lastPostTime, gameState.gameType == 'S' ? 300 : 21) && gameState.currentInning < 9 && messageArray.length == 0) {
     message = postFunFact(gameState);
 
     //TODO delete this after testing video
