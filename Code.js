@@ -136,9 +136,11 @@ gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRe
   gameState.mediaActive = undefined;
   [postArray, gameState] = determinePost(gameState, previousGameState);
   if (gameState.mediaActive === true) {
-    // A new event fired — refresh the timer
+    // A new event fired — refresh the timer and allow a new video for this cycle
     gameState.mediaActivatedTime = new Date().toISOString();
+    gameState.mediaVideoPosted = false;
     Logger.log('=> mediaActivatedTime refreshed by determinePost: ' + gameState.mediaActivatedTime);
+    Logger.log('=> mediaVideoPosted reset to false for new event cycle.');
   } else {
     // determinePost didn't fire a new event — restore previous state
     gameState.mediaActive = mediaActiveBeforeDeterminePost;
