@@ -704,7 +704,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);    
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
 
     if (gameState.currentInning > 8 && (gameState.inningState == 'Bottom' || gameState.inningState == 'End')) {
@@ -724,7 +724,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -737,7 +737,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -749,7 +749,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -760,7 +760,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -771,7 +771,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -783,7 +783,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -794,7 +794,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
     gameState.mediaSynonym = 'didntGoGreatSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   } 
@@ -806,7 +806,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -817,7 +817,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';    
     messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -828,7 +828,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }  
@@ -839,7 +839,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }  
@@ -875,7 +875,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
       gameState.currentPost = gameState.awayScore + gameState.homeScore;
       gameState.mediaActive = true;
-      gameState.mediaTeam = setMediaTeam(gameState);
+      gameState.mediaTeam = 'Colorado Rockies';
       gameState.mediaSynonym = 'wentOkSynonym';
       messageArray.push({ text: message, id: gameState.currentPost });
   }
@@ -888,7 +888,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     //taco's is often a second post
     gameState.currentPost = 'tacos';
     gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
+    gameState.mediaTeam = 'Colorado Rockies';
     gameState.mediaSynonym = 'wentOkSynonym';
     messageArray.push({ text: message, id: gameState.currentPost });
   }  
