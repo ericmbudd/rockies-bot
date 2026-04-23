@@ -293,26 +293,33 @@ function postGameVideo(gameState) {
     var isShortVideo = (min == '00') || (min == '01' && parseInt(sec, 10) <= 30);
     var isFinal = (gameState.detailedState == 'Final' || gameState.detailedState == 'Game Over');
 
-    // Priority 1: Scoring or Final plays are queued, but only if no video reply has been posted yet for this mediaActive cycle.
+    // Priority 1: Scoring or Final plays are queued — Rockies highlights only, or opponent highlights when Rockies are losing.
     if (isShortVideo && (scoringPlay || isFinal) && !gameState.mediaVideoPosted) { // This is for scoring plays
-      Logger.log("   - Video qualifies! Queueing it up for posting.");
-      gameState.queuedVideoHeadline = gameState.highlightHeadline;
-      gameState.queuedVideoLink = gameState.highlightLink;
-      gameState.queuedVideoDuration = gameState.highlightDuration;
-      gameState.queuedVideoOutput = gameState.highlightOutput;
-      gameState.queuedVideoDescription = gameState.highlightDescription;
-      // Activate media flag for the main posting loop
-      gameState.mediaActive = true;
-      // Set mediaTeam for the queued scoring play
-      gameState.mediaTeam = isFinal ? 'Colorado Rockies' : setMediaTeam(gameState);
-      // Use mediaSynonym from determinePost if set; otherwise fall back based on which team scored
-      if (!gameState.mediaSynonym) {
-        gameState.mediaSynonym = (gameState.mediaTeam === 'Colorado Rockies') ? 'wentOkSynonym' : 'didntGoGreatSynonym';
-        Logger.log("   - mediaSynonym not set by determinePost, using fallback: " + gameState.mediaSynonym);
+      let keywords = gameState.highlightKeywordsAll || [];
+      let isRockiesVideo = keywords.some(k => k.type === 'team_id' && k.value === '115');
+      let isLosingState = gameState.losingState === 'Losing';
+      Logger.log('   - Rockies team keyword found in highlight: ' + isRockiesVideo + ' | losingState: ' + gameState.losingState);
+      if (!isRockiesVideo && !isLosingState) {
+        Logger.log("   - Scoring/Final video skipped: not a Rockies highlight and Rockies are not losing.");
       } else {
-        Logger.log("   - Using mediaSynonym from determinePost: " + gameState.mediaSynonym);
+        Logger.log("   - Video qualifies! Queueing it up for posting.");
+        gameState.queuedVideoHeadline = gameState.highlightHeadline;
+        gameState.queuedVideoLink = gameState.highlightLink;
+        gameState.queuedVideoDuration = gameState.highlightDuration;
+        gameState.queuedVideoOutput = gameState.highlightOutput;
+        gameState.queuedVideoDescription = gameState.highlightDescription;
+        // Activate media flag for the main posting loop
+        gameState.mediaActive = true;
+        gameState.mediaTeam = isRockiesVideo ? 'Colorado Rockies' : gameState[gameState.opponentHomeStatus + 'Team'];
+        // Use mediaSynonym from determinePost if set; otherwise fall back
+        if (!gameState.mediaSynonym) {
+          gameState.mediaSynonym = isRockiesVideo ? 'wentOkSynonym' : 'didntGoGreatSynonym';
+          Logger.log("   - mediaSynonym not set by determinePost, using fallback: " + gameState.mediaSynonym);
+        } else {
+          Logger.log("   - Using mediaSynonym from determinePost: " + gameState.mediaSynonym);
+        }
+        Logger.log("   - Scoring team: " + gameState.mediaTeam);
       }
-      Logger.log("   - Scoring team: " + gameState.mediaTeam);
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
