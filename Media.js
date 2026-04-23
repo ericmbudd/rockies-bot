@@ -314,9 +314,13 @@ function postGameVideo(gameState) {
     }
     // Priority 2: Defensive plays post immediately ONLY if no scoring play is currently queued.
     else if (isShortVideo && defensivePlay) {
-      if (!gameState.highlightDescription || gameState.highlightDescription.trim() === '') {
+      let isAbsPlay = gameState.highlightHeadline && gameState.highlightHeadline.includes('ABS');
+      if (isAbsPlay) {
+        Logger.log('   - ABS play detected: captivatingIndex threshold and description requirement waived.');
+      }
+      if (!isAbsPlay && (!gameState.highlightDescription || gameState.highlightDescription.trim() === '')) {
         Logger.log('   - Defensive video skipped: description is null or empty.');
-      } else if ((gameState.highlightCaptivatingIndex || 0) <= 19) {
+      } else if (!isAbsPlay && (gameState.highlightCaptivatingIndex || 0) <= 19) {
         Logger.log('   - Defensive video skipped: captivatingIndex=' + (gameState.highlightCaptivatingIndex || 0) + ' (must be > 19).');
       } else if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
         Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
@@ -336,10 +340,15 @@ function postGameVideo(gameState) {
             Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
             let tempMediaSynonym = 'weKeptItTogetherSynonym';
             let highlightTeamName = (keywords.find(k => k.type === 'team') || {}).displayName || 'Colorado Rockies';
+
+            // ABS plays with no description fall back to the headline as post text
+            let postBody = (gameState.highlightDescription && gameState.highlightDescription.trim() !== '')
+              ? gameState.highlightDescription
+              : gameState.highlightHeadline;
             
             let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
-${highlightTeamName} — ${gameState.highlightDescription}:`;
+${highlightTeamName} — ${postBody}:`;
 
             // Download and post the video as a standalone (isReply = false)
             let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
