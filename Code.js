@@ -770,8 +770,10 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
   }
 
 
-  // losing by even-run milestones (2, 4, 6, 8, ...) or 3-run deficit
-  if (gameState.losingState == 'Losing' && previousGameState.losingState == 'Losing' && gameState.currentRunDeficit >= 2 && (gameState.currentRunDeficit % 2 == 0 || gameState.currentRunDeficit == 3)) {
+  // losing by even-run milestones (2, 4, 6, 8, ...) or 3-run deficit — only when opponent scores
+  if (gameState.losingState == 'Losing' && previousGameState.losingState == 'Losing'
+    && gameState[gameState.opponentHomeStatus + 'Score'] > previousGameState[gameState.opponentHomeStatus + 'Score']
+    && gameState.currentRunDeficit >= 2 && (gameState.currentRunDeficit % 2 == 0 || gameState.currentRunDeficit == 3)) {
     message = gameState.currentRunDeficit == 2
       ? `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
       : `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`;
@@ -782,8 +784,9 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     messageArray.push({ text: message, id: gameState.currentPost });
   }
 
-  // winning by even-run milestones (2, 4, 6, 8, ...) or 3-run lead
-  if (gameState.losingState == 'Not Losing' && previousGameState.losingState == 'Not Losing') {
+  // winning by even-run milestones (2, 4, 6, 8, ...) or 3-run lead — only when Rockies score
+  if (gameState.losingState == 'Not Losing' && previousGameState.losingState == 'Not Losing'
+    && gameState[gameState.myTeamHomeStatus + 'Score'] > previousGameState[gameState.myTeamHomeStatus + 'Score']) {
     let currentLead = gameState[gameState.myTeamHomeStatus + 'Score'] - gameState[gameState.opponentHomeStatus + 'Score'];
     if (currentLead >= 2 && (currentLead % 2 == 0 || currentLead == 3)) {
       message = currentLead == 2
