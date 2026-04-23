@@ -7,17 +7,22 @@ function main(triggerUid) {
   dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd");  
 
   const lock = LockService.getScriptLock();
-  const success = lock.tryLock(100);
-  if (success) {
+  if (!lock.tryLock(100)) {
+    Logger.log('locked by other process');
+    return;
+  }
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("GameState");
+  var gameState;
+  try {
 
   teamSchedule = pullCurrentSchedule(dateTime, dateTime);
-  var gameState = findCurrentGameState(teamSchedule);
+  gameState = findCurrentGameState(teamSchedule);
 
 
   if (gameState == undefined) {
     gameState = {};
     gameState.detailedState = 'Not Scheduled'
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("GameState");  
     sheet.getRange(2,1,1,1).setValues([[JSON.stringify(gameState)]]);    
     Logger.log('no game found today')
     return
@@ -101,34 +106,12 @@ function main(triggerUid) {
   
   gameState = determineLosingStateChanges(gameState, previousGameState)
 
-let mediaActiveBeforeTry = gameState.mediaActive;
-try {
-  [gameState, outputHighlights] = processGameHighlights(gameState);
-  gameState = postGameVideo(gameState);
-} catch (error) {
-  Logger.log(error);
-  // Expected output: ReferenceError: nonExistentFunction is not defined
-  // (Note: the exact output may be browser-dependent)
-}
-
-// Reset gameMediaArrayLength after Pre-Game/Warmup runs so the first In Progress run
-// always sees a count difference and writes the full highlight list to the sheet.
-if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup') {
-  gameState.gameMediaArrayLength = 0;
-}
-
-// If mediaActive was freshly set in the try block, record the activation time
-if (gameState.mediaActive === true && !mediaActiveBeforeTry) {
-  gameState.mediaActivatedTime = new Date().toISOString();
-  Logger.log('=> mediaActivatedTime refreshed from try block: ' + gameState.mediaActivatedTime);
-}
-
-// Check mediaActive is still within the reply window, using whichever time is more recent
-let mediaTimeRef = (previousGameState.mediaActivatedTime && previousGameState.lastPostTime &&
-  new Date(previousGameState.mediaActivatedTime) > new Date(previousGameState.lastPostTime))
-  ? previousGameState.mediaActivatedTime
-  : previousGameState.lastPostTime;
-gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRef);
+  // Check mediaActive reply window using previous state (video processing happens outside the lock)
+  let mediaTimeRef = (previousGameState.mediaActivatedTime && previousGameState.lastPostTime &&
+    new Date(previousGameState.mediaActivatedTime) > new Date(previousGameState.lastPostTime))
+    ? previousGameState.mediaActivatedTime
+    : previousGameState.lastPostTime;
+  gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRef);
 
   /*
   Logger.log(highlightHeadline)
@@ -171,11 +154,50 @@ gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRe
 
   logCurrentPlay(gameState);
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("GameState");  
   sheet.getRange(2,1,1,1).setValues([[JSON.stringify(gameState)]]);
+  } finally {
+    lock.releaseLock();
   }
-  else {
-    Logger.log('locked by other process')
+
+  // Video processing outside the lock — downloadAndPostVideo can be long-running (30–60+ sec).
+  // Concurrent runs are free to proceed with state logic and text posts during this time.
+  let mediaActiveBeforeTry = gameState.mediaActive;
+  try {
+    [gameState, outputHighlights] = processGameHighlights(gameState);
+    gameState = postGameVideo(gameState);
+  } catch (error) {
+    Logger.log(error);
+  }
+
+  // Reset gameMediaArrayLength after Pre-Game/Warmup runs so the first In Progress run
+  // always sees a count difference and writes the full highlight list to the sheet.
+  if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup') {
+    gameState.gameMediaArrayLength = 0;
+  }
+
+  // If mediaActive was freshly set by video processing, record the activation time
+  if (gameState.mediaActive === true && !mediaActiveBeforeTry) {
+    gameState.mediaActivatedTime = new Date().toISOString();
+    Logger.log('=> mediaActivatedTime refreshed from video processing: ' + gameState.mediaActivatedTime);
+  }
+
+  // Re-acquire lock to merge video-updated fields back onto the freshest sheet state,
+  // avoiding overwriting changes made by a concurrent run during video processing.
+  const videoLock = LockService.getScriptLock();
+  videoLock.waitLock(30000);
+  try {
+    const currentStateStr = sheet.getRange(2,1,1,1).getValue();
+    const freshState = currentStateStr ? JSON.parse(currentStateStr) : gameState;
+    const videoFields = [
+      'mediaActive', 'mediaActivatedTime', 'mediaVideoPosted',
+      'queuedVideoLink', 'queuedVideoHeadline', 'queuedVideoDuration', 'queuedVideoOutput', 'queuedVideoDescription',
+      'highlightHeadline', 'highlightLink', 'highlightDuration', 'highlightOutput', 'highlightDescription',
+      'highlightKeywordsAll', 'highlightCaptivatingIndex', 'freeGame', 'gameMediaArrayLength'
+    ];
+    videoFields.forEach(f => { if (gameState[f] !== undefined) freshState[f] = gameState[f]; });
+    sheet.getRange(2,1,1,1).setValues([[JSON.stringify(freshState)]]);
+  } finally {
+    videoLock.releaseLock();
   }
 }
 
