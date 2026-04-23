@@ -70,8 +70,8 @@ function pullGameHighlights(gameState) {
   //content = getGameContent();
 
 
-  highlights = content.highlights.highlights.items
-  freeGame = content.media.freeGame
+  highlights = (content.highlights && content.highlights.highlights && content.highlights.highlights.items) || [];
+  freeGame = content.media && content.media.freeGame;
 
   //Logger.log(highlights)
 
@@ -219,7 +219,7 @@ function processGameHighlights(gameState) {
 
 
   gameState.gameMediaArrayLength = highlights.length;
-  if (highlights.length !== previousGameState.gameMediaArrayLength) {
+  if (highlights.length > 0 && highlights.length !== previousGameState.gameMediaArrayLength) {
     Logger.log("=> New media rows detected (" + previousGameState.gameMediaArrayLength + " -> " + highlights.length + "). Updating Current Game Media sheet.");
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
     sheet.getRange(2,1,gameState.gameMediaArrayLength,5).setValues(outputHighlights);
