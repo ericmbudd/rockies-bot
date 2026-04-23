@@ -214,10 +214,6 @@ function processGameHighlights(gameState) {
     let captivatingIndex = (matchedPlay && matchedPlay.about && matchedPlay.about.captivatingIndex != null)
       ? matchedPlay.about.captivatingIndex
       : '';
-    if (matchedPlay) {
-      Logger.log('playByPlay match: "' + h.headline + '" captivatingIndex=' + captivatingIndex);
-    }
-
     outputHighlights.push([dateTime, h.duration, captivatingIndex, `=HYPERLINK("${h.link}","${h.headline}")`, description])
   }
 

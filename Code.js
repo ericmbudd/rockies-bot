@@ -151,7 +151,7 @@ gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRe
     // determinePost didn't fire a new event — restore previous state
     gameState.mediaActive = mediaActiveBeforeDeterminePost;
   }
-  Logger.log("Post=" + JSON.stringify(postArray))
+  if (postArray.length > 0) { Logger.log("Post=" + JSON.stringify(postArray)); }
 
   //postArray = ['test post 1']
 
@@ -857,7 +857,6 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
    //COMEBACK - CLAWING BACK
 
-  Logger.log(`${gameState.largestRunDeficit} - ${gameState.currentRunDeficit} % 2 == ${gameState.largestRunDeficit - gameState.currentRunDeficit % 2}`)
   if (gameState.losingState == 'Losing' && 
       gameState.largestRunDeficit > 1 && 
       (
@@ -1009,8 +1008,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
 
 
 
-  Logger.log('messageArray=')
-  Logger.log(messageArray + ' mediaActive in post=' + gameState.mediaActive)
+  if (messageArray.length > 0) { Logger.log('messageArray=' + JSON.stringify(messageArray) + ' mediaActive in post=' + gameState.mediaActive); }
   return [messageArray, gameState]
 }
 
