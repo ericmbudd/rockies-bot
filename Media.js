@@ -396,7 +396,6 @@ ${highlightTeamName} — ${postBody}:`;
       Logger.log('=> SUCCESS: Conditions met. Posting queued scoring media reply.');
 
       var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
-      var postCount = Number(sheet.getRange(1,8,1,1).getValues());
 
       var dateTime = new Date();
       var timezone = Session.getScriptTimeZone();
@@ -439,8 +438,15 @@ ${highlightTeamName} — ${postBody}:`;
 
       if (blueskyLink) {
         Logger.log("Outputting to Posts sheet")
-        sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, queuedVideoOutput, blueskyLink]]);
-        sheet.getRange(1,8,1,1).setValue(  [Number(postCount + 1)] );
+        const postsLock = LockService.getScriptLock();
+        postsLock.waitLock(15000);
+        try {
+          const freshPostCount = Number(sheet.getRange(1,8,1,1).getValues());
+          sheet.getRange(2 + freshPostCount,1,1,4).setValues([[dateTime, postedText, queuedVideoOutput, blueskyLink]]);
+          sheet.getRange(1,8,1,1).setValue([Number(freshPostCount + 1)]);
+        } finally {
+          postsLock.releaseLock();
+        }
       }
     } else {
       Logger.log('=> SKIPPED POSTING: Waiting for mediaReplyThreshold to be met for queued scoring video.');
