@@ -298,7 +298,7 @@ function postGameVideo(gameState) {
       // Activate media flag for the main posting loop
       gameState.mediaActive = true;
       // Set mediaTeam for the queued scoring play
-      gameState.mediaTeam = setMediaTeam(gameState);
+      gameState.mediaTeam = isFinal ? 'Colorado Rockies' : setMediaTeam(gameState);
       // Use mediaSynonym from determinePost if set; otherwise fall back based on which team scored
       if (!gameState.mediaSynonym) {
         gameState.mediaSynonym = (gameState.mediaTeam === 'Colorado Rockies') ? 'wentOkSynonym' : 'didntGoGreatSynonym';
