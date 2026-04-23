@@ -149,13 +149,19 @@ ${highlightTeamName} — ${gameState.highlightDescription}`;
 function processGameHighlights(gameState) {
   gameState = gameState ?? loadPreviousGameState();
   [highlights, freeGame] = pullGameHighlights(gameState)
+  gameState.freeGame = freeGame;
+
+  if (!highlights || highlights.length === 0) {
+    Logger.log('processGameHighlights: no highlights available (detailedState=' + gameState.detailedState + '). Skipping.');
+    return [gameState, []];
+  }
+
   gameState.highlightHeadline = highlights[highlights.length - 1].headline
   gameState.highlightDuration = highlights[highlights.length - 1].duration
   gameState.highlightLink = highlights[highlights.length - 1].link
   gameState.highlightDescription = highlights[highlights.length - 1].description || '';
   gameState.highlightKeywordsAll = highlights[highlights.length - 1].keywordsAll || [];
   gameState.highlightOutput = `=HYPERLINK("${gameState.highlightLink}","${gameState.highlightHeadline}")`
-  gameState.freeGame = freeGame;
 
   // Removed: const defensivePostMade = postDefensivePlayVideo(gameState);
   // The logic for processing highlights and queuing/posting is all in postGameVideo.
@@ -219,8 +225,8 @@ function processGameHighlights(gameState) {
 
 
   gameState.gameMediaArrayLength = highlights.length;
-  if (highlights.length > 0 && highlights.length !== previousGameState.gameMediaArrayLength) {
-    Logger.log("=> New media rows detected (" + previousGameState.gameMediaArrayLength + " -> " + highlights.length + "). Updating Current Game Media sheet.");
+  if (highlights.length > 0 && (gameState.detailedState === 'Warmup' || highlights.length !== previousGameState.gameMediaArrayLength)) {
+    Logger.log("=> Updating Current Game Media sheet (detailedState=" + gameState.detailedState + ", rows: " + previousGameState.gameMediaArrayLength + " -> " + highlights.length + ").");
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
     sheet.getRange(2,1,gameState.gameMediaArrayLength,5).setValues(outputHighlights);
   } else {
