@@ -161,6 +161,24 @@ function main(triggerUid) {
 
   // Video processing outside the lock — downloadAndPostVideo can be long-running (30–60+ sec).
   // Concurrent runs are free to proceed with state logic and text posts during this time.
+  // Re-read media gating fields from the sheet first: a concurrent run may have already posted
+  // a video and set mediaVideoPosted=true while this run was inside the first lock.
+  try {
+    const latestStateStr = sheet.getRange(2,1,1,1).getValue();
+    if (latestStateStr) {
+      const latestState = JSON.parse(latestStateStr);
+      gameState.mediaVideoPosted = latestState.mediaVideoPosted;
+      gameState.queuedVideoLink = latestState.queuedVideoLink;
+      gameState.queuedVideoHeadline = latestState.queuedVideoHeadline;
+      gameState.queuedVideoDuration = latestState.queuedVideoDuration;
+      gameState.queuedVideoOutput = latestState.queuedVideoOutput;
+      gameState.queuedVideoDescription = latestState.queuedVideoDescription;
+      Logger.log('=> Pre-video refresh: mediaVideoPosted=' + gameState.mediaVideoPosted + ' queuedVideoLink=' + gameState.queuedVideoLink);
+    }
+  } catch (e) {
+    Logger.log('=> Pre-video state refresh failed: ' + e);
+  }
+
   let mediaActiveBeforeTry = gameState.mediaActive;
   try {
     [gameState, outputHighlights] = processGameHighlights(gameState);
