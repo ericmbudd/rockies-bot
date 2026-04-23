@@ -743,10 +743,11 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
   }
 
 
-  //losing large
-  if (gameState.largeThresholdMet == true && gameState.losingState == 'Losing' && previousGameState.largeThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus  + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
-
+  // losing by even-run milestones (2, 4, 6, 8, ...)
+  if (gameState.losingState == 'Losing' && gameState.currentRunDeficit >= 2 && gameState.currentRunDeficit % 2 == 0) {
+    message = gameState.currentRunDeficit == 2
+      ? `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
+      : `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`;
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
     gameState.mediaActive = true;
     gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
@@ -754,105 +755,19 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     messageArray.push({ text: message, id: gameState.currentPost });
   }
 
-   //losing extra large
-  if (gameState.extraLargeThresholdMet == true && gameState.losingState == 'Losing' && previousGameState.extraLargeThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus  + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
-    gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }
-
-   //losing massive
-  if (gameState.massiveThresholdMet == true && gameState.losingState == 'Losing' && previousGameState.massiveThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus  + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
-    gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }
-
-   //losing super
-  if (gameState.superThresholdMet == true && gameState.losingState == 'Losing' && previousGameState.superThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus  + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
-
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
-    gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }
-
-   //losing ultra
-  if (gameState.ultraThresholdMet == true && gameState.losingState == 'Losing' && previousGameState.ultraThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus  + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = gameState[gameState.opponentHomeStatus + 'Team'];
-    gameState.mediaSynonym = 'didntGoGreatSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  } 
-
-
-  //winning somewhat
-  if (gameState.mediumWinThresholdMet == true && gameState.losingState == 'Not Losing' && previousGameState.mediumWinThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are ${getSynonym('betterThanExpectedSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus  + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = 'Colorado Rockies';
-    gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }
-
-   //winning extra large
-  if (gameState.extraLargeWinThresholdMet == true && gameState.losingState == 'Not Losing' && previousGameState.extraLargeWinThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus  + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = 'Colorado Rockies';
-    gameState.mediaSynonym = 'wentOkSynonym';    
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }
-
-   //winning massive
-  if (gameState.massiveWinThresholdMet == true && gameState.losingState == 'Not Losing' && previousGameState.massiveWinThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus  + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = 'Colorado Rockies';
-    gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }  
-
-   //winning super
-  if (gameState.superWinThresholdMet == true && gameState.losingState == 'Not Losing' && previousGameState.superWinThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus  + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = 'Colorado Rockies';
-    gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
-  }  
-
-   //winning ultra
-  if (gameState.ultraWinThresholdMet == true && gameState.losingState == 'Not Losing' && previousGameState.ultraWinThresholdMet == false) {
-    message = `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus  + 'Score']}`
-
-    gameState.currentPost = gameState.awayScore + gameState.homeScore;
-    gameState.mediaActive = true;
-    gameState.mediaTeam = setMediaTeam(gameState);
-    gameState.mediaSynonym = 'wentOkSynonym';
-    messageArray.push({ text: message, id: gameState.currentPost });
+  // winning by even-run milestones (2, 4, 6, 8, ...)
+  if (gameState.losingState == 'Not Losing') {
+    let currentLead = gameState[gameState.myTeamHomeStatus + 'Score'] - gameState[gameState.opponentHomeStatus + 'Score'];
+    if (currentLead >= 2 && currentLead % 2 == 0) {
+      message = currentLead == 2
+        ? `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are ${getSynonym('betterThanExpectedSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus + 'Score']}`
+        : `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus + 'Score']}`;
+      gameState.currentPost = gameState.awayScore + gameState.homeScore;
+      gameState.mediaActive = true;
+      gameState.mediaTeam = 'Colorado Rockies';
+      gameState.mediaSynonym = 'wentOkSynonym';
+      messageArray.push({ text: message, id: gameState.currentPost });
+    }
   }
 
    //COMEBACK - CLAWING BACK
