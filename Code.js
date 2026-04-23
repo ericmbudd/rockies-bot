@@ -111,6 +111,12 @@ try {
   // (Note: the exact output may be browser-dependent)
 }
 
+// Reset gameMediaArrayLength after Pre-Game/Warmup runs so the first In Progress run
+// always sees a count difference and writes the full highlight list to the sheet.
+if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup') {
+  gameState.gameMediaArrayLength = 0;
+}
+
 // If mediaActive was freshly set in the try block, record the activation time
 if (gameState.mediaActive === true && !mediaActiveBeforeTry) {
   gameState.mediaActivatedTime = new Date().toISOString();
@@ -177,6 +183,7 @@ gameState.mediaActive = gameState.mediaActive && mediaReplyThreshold(mediaTimeRe
 function logCurrentPlay(gameState) {
   try {
     let liveUrl = `https://statsapi.mlb.com/api/v1.1/game/${gameState.gamePk}/feed/live?fields=liveData,plays,currentPlay,result,type,event,eventType,description,rbi,awayScore,homeScore,isOut,about,atBatIndex,halfInning,isTopInning,inning,startTime,endTime,isComplete,isScoringPlay,hasReview,hasOut,captivatingIndex,count,balls,strikes,outs,matchup,batter,id,fullName,link,batSide,code,description,pitcher,pitchHand,splits,batter,pitcher,menOnBase,pitchIndex,actionIndex,runnerIndex,runners,movement,originBase,start,end,outBase,isOut,outNumber,details,event,eventType,runner,isScoringEvent,rbi,earned,teamUnearned,playIndex,credits,player,position,name,abbreviation,credit`;
+    Logger.log('logCurrentPlay url: https://statsapi.mlb.com/api/v1.1/game/' + gameState.gamePk + '/feed/live');
     let liveResponse = JSON.parse(UrlFetchApp.fetch(liveUrl));
     let play = liveResponse.liveData.plays.currentPlay;
     let about = play.about || {};

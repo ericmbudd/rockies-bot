@@ -165,13 +165,60 @@ function processGameHighlights(gameState) {
 
   //output all game media when length changes
   //if(gameState.gameMediaArrayLength != highlights.length) {
+
+  // Fetch playByPlay data to enrich highlights with richer descriptions and captivatingIndex
+  let playByPlayMap = {};
+  if (gameState.detailedState == 'In Progress' && highlights.length !== previousGameState.gameMediaArrayLength) {
+    try {
+      let pbpUrl = `https://statsapi.mlb.com/api/v1/game/${gameState.gamePk}/playByPlay`;
+      Logger.log('Fetching playByPlay: ' + pbpUrl);
+      let pbpResponse = JSON.parse(UrlFetchApp.fetch(pbpUrl));
+      let allPlays = pbpResponse.allPlays || [];
+      for (let play of allPlays) {
+        for (let event of (play.playEvents || [])) {
+          if (event.playId) {
+            playByPlayMap[event.playId] = play;
+          }
+        }
+      }
+      Logger.log('playByPlay loaded: ' + allPlays.length + ' plays, ' + Object.keys(playByPlayMap).length + ' playEvents indexed by playId');
+
+      // Enrich gameState with captivatingIndex for the latest highlight
+      let latestH = highlights[highlights.length - 1];
+      let latestMatchedPlay = latestH.guid ? playByPlayMap[latestH.guid] : null;
+      if (latestMatchedPlay) {
+        gameState.highlightCaptivatingIndex = (latestMatchedPlay.about && latestMatchedPlay.about.captivatingIndex != null)
+          ? latestMatchedPlay.about.captivatingIndex : 0;
+        Logger.log('Latest highlight playByPlay match: captivatingIndex=' + gameState.highlightCaptivatingIndex);
+      } else {
+        gameState.highlightCaptivatingIndex = 0;
+        Logger.log('Latest highlight: no playByPlay match found for guid=' + latestH.guid);
+      }
+    } catch (e) {
+      Logger.log('playByPlay fetch failed: ' + e);
+    }
+  }
+
   outputHighlights = []
 
   for (let h of highlights) {
     var dateTime = new Date(h.date);
     var timezone = Session.getScriptTimeZone();
     dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
-    outputHighlights.push([dateTime, h.duration, `=HYPERLINK("${h.link}","${h.headline}")`, h.description])
+
+    // Match using h.guid directly to playByPlay playEvent.playId
+    let matchedPlay = h.guid ? playByPlayMap[h.guid] : null;
+    let description = (matchedPlay && matchedPlay.result && matchedPlay.result.description)
+      ? matchedPlay.result.description
+      : (h.description || '');
+    let captivatingIndex = (matchedPlay && matchedPlay.about && matchedPlay.about.captivatingIndex != null)
+      ? matchedPlay.about.captivatingIndex
+      : '';
+    if (matchedPlay) {
+      Logger.log('playByPlay match: "' + h.headline + '" captivatingIndex=' + captivatingIndex);
+    }
+
+    outputHighlights.push([dateTime, h.duration, captivatingIndex, `=HYPERLINK("${h.link}","${h.headline}")`, description])
   }
 
 
@@ -179,7 +226,7 @@ function processGameHighlights(gameState) {
   if (highlights.length !== previousGameState.gameMediaArrayLength) {
     Logger.log("=> New media rows detected (" + previousGameState.gameMediaArrayLength + " -> " + highlights.length + "). Updating Current Game Media sheet.");
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
-    sheet.getRange(2,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+    sheet.getRange(2,1,gameState.gameMediaArrayLength,5).setValues(outputHighlights);
   } else {
     Logger.log("=> No new media rows. Skipping Current Game Media sheet update.");
   }
@@ -269,6 +316,8 @@ function postGameVideo(gameState) {
     else if (isShortVideo && defensivePlay) {
       if (!gameState.highlightDescription || gameState.highlightDescription.trim() === '') {
         Logger.log('   - Defensive video skipped: description is null or empty.');
+      } else if ((gameState.highlightCaptivatingIndex || 0) <= 19) {
+        Logger.log('   - Defensive video skipped: captivatingIndex=' + (gameState.highlightCaptivatingIndex || 0) + ' (must be > 19).');
       } else if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
         Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
       } else {
@@ -281,25 +330,35 @@ function postGameVideo(gameState) {
         }
 
         if (isRockiesVideo) {
-          Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
-          let tempMediaSynonym = 'weKeptItTogetherSynonym';
-          let highlightTeamName = (keywords.find(k => k.type === 'team') || {}).displayName || 'Colorado Rockies';
-          
-          let defensiveMessage = `${getSynonym(tempMediaSynonym)}
+          if (gameState.postHistory && gameState.postHistory.includes(gameState.highlightLink)) {
+            Logger.log('   - Defensive video already posted (in postHistory). Skipping duplicate.');
+          } else {
+            Logger.log("   - Rockies defensive video qualifies! Posting it immediately as standalone.");
+            let tempMediaSynonym = 'weKeptItTogetherSynonym';
+            let highlightTeamName = (keywords.find(k => k.type === 'team') || {}).displayName || 'Colorado Rockies';
+            
+            let defensiveMessage = `${getSynonym(tempMediaSynonym)}
 
 ${highlightTeamName} — ${gameState.highlightDescription}:`;
 
-          // Download and post the video as a standalone (isReply = false)
-          let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
+            // Download and post the video as a standalone (isReply = false)
+            let [blueskyLink, uri, cid, postedText] = downloadAndPostVideo(gameState, false, defensiveMessage);
 
-          // Record the post in the "Posts" sheet
-          var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
-          var postCount = Number(sheet.getRange(1,8,1,1).getValues());
-          var dateTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-          sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, gameState.highlightOutput, blueskyLink]]);
-          sheet.getRange(1,8,1,1).setValue([Number(postCount + 1)]);
-          
-          Logger.log("   - Defensive play posted. Not affecting main media queue.");
+            // Record the post in the "Posts" sheet
+            var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
+            var postCount = Number(sheet.getRange(1,8,1,1).getValues());
+            var dateTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+            sheet.getRange(2 + postCount,1,1,4).setValues([[dateTime, postedText, gameState.highlightOutput, blueskyLink]]);
+            sheet.getRange(1,8,1,1).setValue([Number(postCount + 1)]);
+
+            if (blueskyLink) {
+              gameState.postHistory = gameState.postHistory || [];
+              gameState.postHistory.push(gameState.highlightLink);
+              Logger.log('   - Defensive video URL recorded in postHistory: ' + gameState.highlightLink);
+            }
+
+            Logger.log("   - Defensive play posted. Not affecting main media queue.");
+          }
         } else {
           Logger.log("   - Defensive video skipped: no Rockies team_id keyword found in highlight.");
         }
