@@ -104,7 +104,7 @@ function postDefensivePlayVideo(gameState) {
   var [hour, min, sec] = gameState.highlightDuration.split(":")
   var isShortVideo = (min == '00') || (min == '01' && parseInt(sec, 10) <= 30);
 
-  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'called out on strikes', 'throw', 'throws out', 'turns two'];
+  let defensivePlayTerms = ['barehand', 'catch', 'caught stealing', 'clean inning', 'climbs the ladder', 'dart', 'defensive', 'deflected', 'diving', 'double play', 'escapes', 'fans', 'fanning', 'fly out', 'force out', 'foul ball', 'foul territory', 'foul tip', 'glove', 'gunned down', 'induces', 'jam', 'nabs', 'out at', 'pick', 'pick off', 'picks off', 'retires', 'retires the side', 'robbed', 'rockies fan', 'robs', 'save', 'scoreless', 'seals the win', 'sits down', 'snag', 'stop', 'strikeout', 'strikes out', 'striking out the side', 'strike 3', 'called out on strikes', 'throw', 'throws out', 'turns two'];
   let defensivePlay = false;
   let searchContent = (gameState.highlightHeadline + " " + (gameState.highlightDescription || "")).toLowerCase();
   
@@ -451,7 +451,7 @@ ${highlightTeamName} — ${gameState.highlightDescription}:`;
 function clearCurrentGameMedia() {
   //clear current game media tab
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
-  sheet.getRange(2,1,100,4).clearContent();
+  sheet.getRange(2,1,100,5).clearContent();
 }
 
 
@@ -471,11 +471,11 @@ function writeMediaLog() {
   var timezone = Session.getScriptTimeZone();
   var dateTime = new Date();
   dateTime = Utilities.formatDate(dateTime, timezone, "yyyy-MM-dd HH:mm:ss");
-  sheet.getRange(1 + postCount,1,gameState.gameMediaArrayLength,4).setValues(outputHighlights);
+  sheet.getRange(1 + postCount,1,gameState.gameMediaArrayLength,5).setValues(outputHighlights);
 
   //clear current game media tab
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Current Game Media");
-  sheet.getRange(2,1,100,4).clearContent();
+  sheet.getRange(2,1,100,5).clearContent();
 
   //remove trigger after run
   setGameTrigger(4)

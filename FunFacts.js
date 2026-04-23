@@ -57,7 +57,7 @@ That converts to a Pythagorean record of ${winsPythagorean}-${totalGamesSoFar - 
     { text: nextSeriesFunFact(test) },
     { text: `The Rockies are on pace to finish the season with ${onPaceWins} wins and ${162 - onPaceWins} losses.` },
     { text: allTeamsRunDifferential(test) },
-    { text: `In all of the series that The Rockies have played this season, their record is ${seriesRecord[0]} ${seriesRecord[0] == 1 ? 'win' : 'wins'}, ${seriesRecord[1]} ${seriesRecord[1] == 1 ? 'loss' : 'losses'}, and ${seriesRecord[2]} ${seriesRecord[2] == 1 ? 'tie' : 'ties'}.` },
+    { text: `In all of the series that The Rockies have played this season, their record is ${seriesRecord[0]} ${seriesRecord[0] == 1 ? 'NOT loss' : 'NOT losses'}, ${seriesRecord[1]} ${seriesRecord[1] == 1 ? 'loss' : 'losses'}, and ${seriesRecord[2]} ${seriesRecord[2] == 1 ? 'tie' : 'ties'}.` },
     { text: `I realize it's ${getSynonym('oldNewsSynonym', test)} but the Colorado Rockies are ranked ${gameState.standings.myTeamSportRank}th out of 30 teams.` },
     { text: `The Rockies are playing against the ${gameState[gameState.opponentHomeStatus + 'Team']} ${gameState.dayNight == 'day' ? 'today' : 'tonight'} and their record against all ${gameState.standings.opposingLeague == 'American League' ? gameState.standings.opposingLeague + ' teams is': gameState.standings.opposingDivision + ' teams is'} ${gameState.standings.opposingDLWins}-${gameState.standings.opposingDLLosses}.` },
     { text: allTeamsRunsAllowed(test) },
