@@ -316,8 +316,8 @@ function postGameVideo(gameState) {
       }
       if (!isAbsPlay && (!gameState.highlightDescription || gameState.highlightDescription.trim() === '')) {
         Logger.log('   - Defensive video skipped: description is null or empty.');
-      } else if (!isAbsPlay && (gameState.highlightCaptivatingIndex || 0) <= 19) {
-        Logger.log('   - Defensive video skipped: captivatingIndex=' + (gameState.highlightCaptivatingIndex || 0) + ' (must be > 19).');
+      } else if (!isAbsPlay && (typeof gameState.highlightCaptivatingIndex === 'number' && gameState.highlightCaptivatingIndex > 0) === false) {
+        Logger.log('   - Defensive video skipped: captivatingIndex=' + gameState.highlightCaptivatingIndex + ' (must be a number > 0).');
       } else if (gameState.detailedState == 'Pre-Game' || gameState.detailedState == 'Warmup' || gameState.detailedState == 'Game Over') {
         Logger.log('   - Defensive video skipped: detailedState is ' + gameState.detailedState);
       } else {
