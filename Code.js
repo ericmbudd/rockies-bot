@@ -11,6 +11,7 @@ function main(triggerUid) {
   if (success) {
 
   teamSchedule = pullCurrentSchedule(dateTime, dateTime);
+  previousGameState = loadPreviousGameState();
   var gameState = findCurrentGameState(teamSchedule);
 
 
@@ -23,8 +24,27 @@ function main(triggerUid) {
     return
   }
 
+  // When gamePk changes (doubleheader game switch mid-game), neutralize previousGameState
+  // fields that drive milestone and duplicate-post logic. Without this, game 1's scores and
+  // postHistory cause false milestone fires and duplicate posts on the first cycle of game 2.
+  if (previousGameState.gamePk && gameState.gamePk !== previousGameState.gamePk) {
+    Logger.log('=> Game switch detected (' + previousGameState.gamePk + ' -> ' + gameState.gamePk + '). Resetting cross-game state.');
+    previousGameState.awayScore = gameState.awayScore;
+    previousGameState.homeScore = gameState.homeScore;
+    previousGameState.losingState = gameState.losingState;
+    previousGameState.postHistory = [0];
+    previousGameState.mediaActive = false;
+    previousGameState.mediaVideoPosted = false;
+    previousGameState.highlightHeadline = null;
+    previousGameState.highlightLink = null;
+    previousGameState.queuedVideoLink = null;
+    previousGameState.largestRunDeficit = 0;
+    previousGameState.largestRunLead = 0;
+    previousGameState.losingStateChanges = 0;
+    previousGameState.winningStateChanges = 0;
+  }
 
-  previousGameState = loadPreviousGameState();
+
   result = previousGameState.standingsActive != true ? pullMLBStandings(gameState) : (gameState.standings = previousGameState.standings, gameState.standingsActive = true)
 
   if (result.gamesSinceTacos != undefined ) {
@@ -274,7 +294,9 @@ function pullMLBStandings(gameState) {
         Logger.log('opposingteaminfo')
         Logger.log(value.team)
 
-        gameState.standings.opposingStarterHand = pullMLBPerson(gameState[gameState.opponentHomeStatus + 'ProbablePitcherLink']).pitchHand.description.toLowerCase();
+        gameState.standings.opposingStarterHand = gameState[gameState.opponentHomeStatus + 'ProbablePitcherLink']
+          ? pullMLBPerson(gameState[gameState.opponentHomeStatus + 'ProbablePitcherLink']).pitchHand.description.toLowerCase()
+          : 'unknown';
 
         gameState.standings.opposingLeague = value.team.league.name
         gameState.standings.opposingDivision = value.team.division.name
@@ -293,7 +315,9 @@ function pullMLBStandings(gameState) {
       }
 
       if (value.team.name == myTeam) {
-        gameState.standings.myTeamStarterHand = pullMLBPerson(gameState[gameState.myTeamHomeStatus + 'ProbablePitcherLink']).pitchHand.description.toLowerCase();
+        gameState.standings.myTeamStarterHand = gameState[gameState.myTeamHomeStatus + 'ProbablePitcherLink']
+          ? pullMLBPerson(gameState[gameState.myTeamHomeStatus + 'ProbablePitcherLink']).pitchHand.description.toLowerCase()
+          : 'unknown';
         
         gameState.standings.myTeamSportRank = value.sportRank;
 
@@ -352,6 +376,9 @@ function pullMLBStandings(gameState) {
 function predictionModel(gameState) {
   gameState = gameState ?? loadPreviousGameState()
 
+  // Safe split-record pct lookup — returns NaN (filtered downstream) if the key or record is missing
+  const splitPct = (records, key) => (records && records[key] && records[key].pct != null) ? records[key].pct : NaN;
+
   baseMyTeamWinProbability = initialMyTeamWinProbability = gameState[gameState.myTeamHomeStatus + 'WinPct'];
 
   Logger.log(`baseMyTeamWinProbability=` + baseMyTeamWinProbability)
@@ -372,17 +399,17 @@ function predictionModel(gameState) {
   probabilityTweaks.push({type: 'myTeamPythagoreanWin', weighting: .75,
   value: gameState.standings.myTeamPythagoreanWinPct / gameState[gameState.myTeamHomeStatus + 'WinPct']})
   probabilityTweaks.push({type: 'opposingDayNight', weighting: .25,
-  value: 1 - (gameState.standings.opposingSplitRecords[gameState.dayNight].pct / gameState[gameState.opponentHomeStatus + 'WinPct'] - 1)}) 
+  value: 1 - (splitPct(gameState.standings.opposingSplitRecords, gameState.dayNight) / gameState[gameState.opponentHomeStatus + 'WinPct'] - 1)}) 
   probabilityTweaks.push({type: 'myTeamDayNight', weighting: .25,
-  value: gameState.standings.myTeamSplitRecords[gameState.dayNight].pct / gameState[gameState.myTeamHomeStatus + 'WinPct']})
+  value: splitPct(gameState.standings.myTeamSplitRecords, gameState.dayNight) / gameState[gameState.myTeamHomeStatus + 'WinPct']})
 
   //splits for opposing team starting pitcher hand vs. my team split stats
   probabilityTweaks.push({type: 'opposingStarterHand', weighting: .33,
-  value: gameState.standings.myTeamSplitRecords[gameState.standings.opposingStarterHand].pct / gameState[gameState.myTeamHomeStatus + 'WinPct']})
+  value: splitPct(gameState.standings.myTeamSplitRecords, gameState.standings.opposingStarterHand) / gameState[gameState.myTeamHomeStatus + 'WinPct']})
 
   //splits for my team starting pitcher hand vs. opposing team split stats
   probabilityTweaks.push({type: 'myTeamStarterHand', weighting: .33,
-  value: 1 - (gameState.standings.opposingSplitRecords[gameState.standings.myTeamStarterHand].pct / gameState[gameState.opponentHomeStatus + 'WinPct'] - 1)}) 
+  value: 1 - (splitPct(gameState.standings.opposingSplitRecords, gameState.standings.myTeamStarterHand) / gameState[gameState.opponentHomeStatus + 'WinPct'] - 1)}) 
 
 
 //gameState.opposingStarterHand
@@ -985,48 +1012,65 @@ function loadPreviousGameState () {
 function findCurrentGameState(schedule) {
   
   myTeam = 'Colorado Rockies'
-  //myTeam = 'Chicago Cubs'
-  //testing
-  //schedule = getTestSchedule();
+
+  // Collect all Rockies games for the day (handles doubleheaders)
+  let rockiesGames = schedule.games.filter(g =>
+    g.teams.home.team.name == myTeam || g.teams.away.team.name == myTeam
+  );
+
+  if (rockiesGames.length === 0) return undefined;
+
+  let value;
+  if (rockiesGames.length === 1) {
+    value = rockiesGames[0];
+  } else {
+    // Doubleheader: stay on game 1 until its detailedState is 'Final'.
+    // 'Game Over' means the game just ended but stats/win-loss post haven't fired yet;
+    // 'Final' means everything is settled and it's safe to move to game 2.
+    let game1 = rockiesGames.find(g => g.gameNumber === 1) || rockiesGames[0];
+    let game2 = rockiesGames.find(g => g.gameNumber === 2) || rockiesGames[1];
+    let switchToGame2 = (game1.status.detailedState === 'Final');
+    value = switchToGame2 ? game2 : game1;
+    Logger.log('Doubleheader detected. game1 (' + game1.gamePk + ') detailedState=' + game1.status.detailedState +
+               ' | tracking game' + (switchToGame2 ? '2' : '1') + ' (gamePk=' + value.gamePk + ')');
+  }
+
   gameState = {};
 
-  for (let value of schedule.games) {
-    //Logger.log(value.teams.home.team.name)
-    //Logger.log(value.teams.away.team.name)
+  gameState.detailedState = value.status.detailedState;
+  gameState.abstractGameState = value.status.abstractGameState;
+  gameState.gamePk = value.gamePk;
+  gameState.gameType = value.gameType;
+  gameState.currentInning = value.linescore.currentInning;
+  gameState.inningState = value.linescore.inningState;
 
-    if (value.teams.home.team.name == myTeam || value.teams.away.team.name == myTeam) {
-      gameState.detailedState = value.status.detailedState;
-      gameState.abstractGameState = value.status.abstractGameState;
-      gameState.gamePk = value.gamePk;
-      gameState.gameType = value.gameType;
-      gameState.currentInning = value.linescore.currentInning;
-      gameState.inningState = value.linescore.inningState;
+  gameState.dayNight = value.dayNight;
+  gameState.myTeamHomeStatus = value.teams.home.team.name == myTeam ? 'home' : 'away'
+  gameState.opponentHomeStatus = value.teams.home.team.name == myTeam ? 'away' : 'home'
+  gameState.homeTeam = value.teams.home.team.name;
+  gameState.awayTeam = value.teams.away.team.name;
 
-      gameState.dayNight = value.dayNight;
-      gameState.myTeamHomeStatus = value.teams.home.team.name == myTeam ? 'home' : 'away'
-      gameState.opponentHomeStatus = value.teams.home.team.name == myTeam ? 'away' : 'home'
-      gameState.homeTeam = value.teams.home.team.name;
-      gameState.awayTeam = value.teams.away.team.name;
+  gameState.homeProbablePitcherLink = value.teams.home.probablePitcher ? value.teams.home.probablePitcher.link : null;
+  gameState.awayProbablePitcherLink = value.teams.away.probablePitcher ? value.teams.away.probablePitcher.link : null;
 
-      gameState.homeProbablePitcherLink = value.teams.home.probablePitcher.link
-      gameState.awayProbablePitcherLink = value.teams.away.probablePitcher.link
+  gameState.homeScore = value.teams.home.score;
+  gameState.awayScore = value.teams.away.score;
+  gameState.homeWins = value.teams.home.leagueRecord.wins;
+  gameState.awayWins = value.teams.away.leagueRecord.wins;
+  gameState.homeLosses = value.teams.home.leagueRecord.losses;
+  gameState.awayLosses = value.teams.away.leagueRecord.losses;
+  gameState.homeWinPct = value.teams.home.leagueRecord.pct;
+  gameState.awayWinPct = value.teams.away.leagueRecord.pct;     
 
-      gameState.homeScore = value.teams.home.score;
-      gameState.awayScore = value.teams.away.score;
-      gameState.homeWins = value.teams.home.leagueRecord.wins;
-      gameState.awayWins = value.teams.away.leagueRecord.wins;
-      gameState.homeLosses = value.teams.home.leagueRecord.losses;
-      gameState.awayLosses = value.teams.away.leagueRecord.losses;
-      gameState.homeWinPct = value.teams.home.leagueRecord.pct;
-      gameState.awayWinPct = value.teams.away.leagueRecord.pct;     
+  gameState.venue = value.venue.name;
 
-      gameState.venue = value.venue.name;
+  gameState.gamesInSeries = value.gamesInSeries;
+  gameState.doubleHeader = value.doubleHeader;
+  gameState.gameNumber = value.gameNumber;
 
-      gameState.gamesInSeries = value.gamesInSeries;
-
-      gameState.myTeamWinPercentage = gameState[gameState.myTeamHomeStatus + 'WinPct'] * 100;
-      gameState.myTeamWins = gameState[gameState.myTeamHomeStatus + 'Wins'];
-      gameState.myTeamLosses = gameState[gameState.myTeamHomeStatus + 'Losses'];
+  gameState.myTeamWinPercentage = gameState[gameState.myTeamHomeStatus + 'WinPct'] * 100;
+  gameState.myTeamWins = gameState[gameState.myTeamHomeStatus + 'Wins'];
+  gameState.myTeamLosses = gameState[gameState.myTeamHomeStatus + 'Losses'];
 
       //currently losing?
 
@@ -1071,6 +1115,4 @@ function findCurrentGameState(schedule) {
       //Logger.log(gameState)
 
       return gameState;
-    }
-  }
 }
