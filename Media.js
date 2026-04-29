@@ -251,7 +251,7 @@ function postGameVideo(gameState) {
     Logger.log("=> New mediaActive cycle started. mediaVideoPosted reset to false.");
   }
 
-  if (gameState.highlightHeadline != previousGameState.highlightHeadline) {
+  if (gameState.highlightLink && gameState.highlightLink !== previousGameState.highlightLink) {
     //writeMediaLog(gameState.highlightDuration, gameState.highlightOutput)
     Logger.log("=> NEW HIGHLIGHT DETECTED.");
 
@@ -392,7 +392,16 @@ ${highlightTeamName} — ${postBody}:`;
     Logger.log("=> We have a queued scoring video waiting: " + gameState.queuedVideoHeadline);
     Logger.log("   - Reply threshold met: " + replyThresholdMet);
 
-    if (replyThresholdMet) {
+    // Defense-in-depth: check postHistory so a reset mediaVideoPosted can't cause a re-upload
+    if (gameState.postHistory && gameState.postHistory.includes(gameState.queuedVideoLink)) {
+      Logger.log('=> Scoring video already in postHistory. Clearing queue without re-posting.');
+      gameState.queuedVideoLink = null;
+      gameState.queuedVideoHeadline = null;
+      gameState.queuedVideoDuration = null;
+      gameState.queuedVideoOutput = null;
+      gameState.queuedVideoDescription = null;
+      gameState.mediaVideoPosted = true;
+    } else if (replyThresholdMet) {
       Logger.log('=> SUCCESS: Conditions met. Posting queued scoring media reply.');
 
       var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Posts");
@@ -433,6 +442,10 @@ ${highlightTeamName} — ${postBody}:`;
         gameState.queuedVideoDuration = null;
         gameState.queuedVideoOutput = null;
         gameState.queuedVideoDescription = null;
+        // Record in postHistory so a future reset of mediaVideoPosted can't re-post
+        gameState.postHistory = gameState.postHistory || [];
+        gameState.postHistory.push(originalLink);
+        Logger.log('   - Scoring video URL recorded in postHistory: ' + originalLink);
       } else {
         Logger.log('=> Video post failed (no blueskyLink returned). mediaVideoPosted NOT set. Will retry next cycle.');
       }

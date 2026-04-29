@@ -774,7 +774,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
   if (gameState.losingState == 'Losing' && previousGameState.losingState == 'Losing'
     && gameState[gameState.opponentHomeStatus + 'Score'] > previousGameState[gameState.opponentHomeStatus + 'Score']
     && gameState.currentRunDeficit >= 2 && (gameState.currentRunDeficit % 2 == 0 || gameState.currentRunDeficit == 3)) {
-    message = gameState.currentRunDeficit == 2
+    message = gameState.currentRunDeficit <= 4
       ? `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`
       : `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are getting just ${getSynonym('getModifierSynonym')} ${getSynonym('getKilledSynonym')}, down ${gameState[gameState.opponentHomeStatus + 'Score']}-${gameState[gameState.myTeamHomeStatus + 'Score']}`;
     gameState.currentPost = gameState.awayScore + gameState.homeScore;
@@ -789,7 +789,7 @@ Catch the play-by-play live on MLB Gameday: https://www.mlb.com/gameday/${gameSt
     && gameState[gameState.myTeamHomeStatus + 'Score'] > previousGameState[gameState.myTeamHomeStatus + 'Score']) {
     let currentLead = gameState[gameState.myTeamHomeStatus + 'Score'] - gameState[gameState.opponentHomeStatus + 'Score'];
     if (currentLead >= 2 && (currentLead % 2 == 0 || currentLead == 3)) {
-      message = currentLead == 2
+      message = currentLead <= 4
         ? `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} are ${getSynonym('betterThanExpectedSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus + 'Score']}`
         : `The ${getShortName(gameState[gameState.myTeamHomeStatus + 'Team'])} ${getSynonym('areKillingItSynonym')} ${gameState.dayNight == 'day' ? 'today' : 'this evening'}, up ${gameState[gameState.myTeamHomeStatus + 'Score']}-${gameState[gameState.opponentHomeStatus + 'Score']}`;
       gameState.currentPost = gameState.awayScore + gameState.homeScore;
