@@ -245,6 +245,10 @@ function postGameVideo(gameState) {
   Logger.log("Duration: " + gameState.highlightDuration + " | Link: " + gameState.highlightLink);
   Logger.log("Queued video link: " + gameState.queuedVideoLink);
 
+  // Capture mediaActive BEFORE Priority 1 can set it. Section 2 uses this so a video
+  // queued in the current cycle is never immediately posted in the same cycle.
+  let mediaActiveOnEntry = gameState.mediaActive;
+
   // Reset mediaVideoPosted when mediaActive first turns on for a new cycle
   if (gameState.mediaActive && !previousGameState.mediaActive) {
     gameState.mediaVideoPosted = false;
@@ -387,7 +391,9 @@ ${highlightTeamName} — ${postBody}:`;
   }
 
   // 2. Attempt to Post Queued Scoring Play (if any)
-  if (gameState.mediaActive && gameState.queuedVideoLink) {
+  // Use mediaActiveOnEntry (not gameState.mediaActive) so Priority 1 setting it this cycle
+  // doesn't cause an immediate post — the video must have been queued in a previous run.
+  if (mediaActiveOnEntry && gameState.queuedVideoLink) {
     var replyThresholdMet = mediaReplyThreshold(previousGameState.lastPostTime);
     Logger.log("=> We have a queued scoring video waiting: " + gameState.queuedVideoHeadline);
     Logger.log("   - Reply threshold met: " + replyThresholdMet);
